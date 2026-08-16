@@ -27,7 +27,7 @@ Web UI · REST API · CLI · background job queue · batch processing · dataset
 
 ---
 
-## التشغيل بالعربي: [START_HERE_AR.md](START_HERE_AR.md)
+## التشغيل بالعربي: [START_HERE_AR.md](START_HERE_AR.md) · كود خلايا Colab: [COLAB_CELLS.md](COLAB_CELLS.md)
 
 ## Quick start
 

@@ -14,6 +14,8 @@ the UI can be honest about what produced the audio.
 from __future__ import annotations
 
 import importlib.util
+import sys
+import tempfile
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -25,6 +27,16 @@ from . import audio as A
 from .config import TARGET_SR
 
 ProgressFn = Callable[[float, str], None]
+
+
+def _module_present(name: str) -> bool:
+    """Is `name` importable? Never raises, even for odd/partial installs."""
+    if name in sys.modules:
+        return True
+    try:
+        return importlib.util.find_spec(name) is not None
+    except (ImportError, ValueError, AttributeError):
+        return False
 
 
 @dataclass
@@ -85,51 +97,86 @@ class BaseBackend:
 # Real RVC
 # --------------------------------------------------------------------------- #
 class RVCBackend(BaseBackend):
-    """Wraps a real RVC runtime when the environment provides one."""
+    """Wraps the real `rvc-python` runtime (RVC v2) when it is installed.
+
+    Models are cached per path so converting a batch of files loads the weights
+    once instead of once per file.
+    """
 
     name = "rvc"
     is_real_clone = True
 
-    def __init__(self) -> None:
-        self._infer = None
+    _cache: Dict[str, object] = {}
 
     def available(self) -> bool:
-        return all(importlib.util.find_spec(m) is not None for m in ("torch", "rvc"))
+        return _module_present("torch") and _module_present("rvc_python")
+
+    @staticmethod
+    def _device() -> str:
+        try:
+            import torch  # type: ignore
+
+            return "cuda:0" if torch.cuda.is_available() else "cpu"
+        except Exception:
+            return "cpu"
 
     def _load(self, model_dir: Path):
-        from rvc.infer.infer import RVCInference  # type: ignore
+        from rvc_python.infer import RVCInference  # type: ignore
 
         pth = next(iter(sorted(model_dir.glob("*.pth"))), None)
         if pth is None:
             raise FileNotFoundError(f"No .pth weights inside {model_dir}")
-        index = next(iter(sorted(model_dir.glob("*.index"))), None)
-        inst = RVCInference(model_path=str(pth), index_path=str(index) if index else None)
+
+        key = str(pth)
+        inst = self._cache.get(key)
+        if inst is None:
+            inst = RVCInference(device=self._device())
+            index = next(iter(sorted(model_dir.glob("*.index"))), None)
+            try:
+                inst.load_model(str(pth), index_path=str(index) if index else None)
+            except TypeError:  # older signatures take the weights only
+                inst.load_model(str(pth))
+            self._cache[key] = inst
         return inst
 
     def convert(self, wav, sr, model_dir, params, progress):
         if model_dir is None:
             raise ValueError("A trained model is required for RVC conversion.")
+        import soundfile as sf
+
         t0 = time.time()
         progress(0.05, "Loading model weights")
         inst = self._load(Path(model_dir))
 
-        bounds = A.chunk_for_inference(wav, sr, max_len_s=30.0)
+        inst.set_params(
+            f0up_key=int(params.pitch),
+            f0method=params.f0_method,
+            index_rate=params.index_rate,
+            filter_radius=params.filter_radius,
+            rms_mix_rate=params.rms_mix_rate,
+            protect=params.protect,
+            resample_sr=params.resample_sr,
+        )
+
+        # rvc-python is file-based, so long inputs are chunked through temp files
+        bounds = A.chunk_for_inference(wav, sr, max_len_s=60.0)
         pieces: List[np.ndarray] = []
-        for i, (s, e) in enumerate(bounds):
-            progress(0.1 + 0.85 * i / max(1, len(bounds)), f"Converting chunk {i+1}/{len(bounds)}")
-            out = inst.infer_array(  # type: ignore[attr-defined]
-                wav[s:e], sr,
-                f0_up_key=params.pitch,
-                f0_method=params.f0_method,
-                index_rate=params.index_rate,
-                filter_radius=params.filter_radius,
-                rms_mix_rate=params.rms_mix_rate,
-                protect=params.protect,
-            )
-            pieces.append(np.asarray(out, dtype=np.float32))
-        merged = A.crossfade_concat(pieces, sr)
+        out_sr = sr
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            for i, (s, e) in enumerate(bounds):
+                progress(0.1 + 0.85 * i / max(1, len(bounds)),
+                         f"Converting chunk {i + 1}/{len(bounds)}")
+                src = td_path / f"in_{i:04d}.wav"
+                dst = td_path / f"out_{i:04d}.wav"
+                sf.write(str(src), wav[s:e], sr)
+                inst.infer_file(str(src), str(dst))
+                piece, out_sr = sf.read(str(dst), dtype="float32", always_2d=True)
+                pieces.append(piece.mean(axis=1))
+
+        merged = A.crossfade_concat(pieces, out_sr)
         progress(0.98, "Finalising")
-        return ConvertResult(merged, sr, self.name, params.pitch, time.time() - t0)
+        return ConvertResult(merged, out_sr, self.name, params.pitch, time.time() - t0)
 
 
 # --------------------------------------------------------------------------- #
@@ -266,7 +313,7 @@ def get_engine(force: Optional[str] = None) -> BaseBackend:
 
 def engine_info() -> Dict:
     eng = get_engine()
-    torch_ok = importlib.util.find_spec("torch") is not None
+    torch_ok = _module_present("torch")
     gpu = False
     device = "cpu"
     if torch_ok:

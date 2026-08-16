@@ -433,3 +433,120 @@ def test_api_missing_output_404(client):
 
 def test_api_delete_missing_model_404(client):
     assert client.delete("/api/models/nope-xyz").status_code == 404
+
+
+# --------------------------------------------------------------------------- #
+# real RVC (GPU) code path — exercised with a stand-in for `rvc_python`
+# --------------------------------------------------------------------------- #
+@pytest.fixture
+def fake_rvc(monkeypatch, tmp_path):
+    """Install fake `torch` + `rvc_python` modules mirroring the real API."""
+    import sys as _sys
+    import types
+
+    calls: dict = {"loads": 0, "chunks": 0}
+
+    torch = types.ModuleType("torch")
+    torch.Tensor = type("Tensor", (), {})
+    torch.cuda = types.SimpleNamespace(is_available=lambda: True,
+                                       get_device_name=lambda i: "Tesla T4")
+    monkeypatch.setitem(_sys.modules, "torch", torch)
+
+    class FakeRVC:
+        def __init__(self, device="cpu"):
+            calls["device"] = device
+
+        def load_model(self, path, index_path=None):
+            calls["model"], calls["index"] = path, index_path
+            calls["loads"] += 1
+
+        def set_params(self, **kw):
+            calls["params"] = kw
+
+        def infer_file(self, inp, out):
+            w, sr = sf.read(inp, dtype="float32")
+            sf.write(out, (w * 0.5).astype("float32"), sr)
+            calls["chunks"] += 1
+
+    infer_mod = types.ModuleType("rvc_python.infer")
+    infer_mod.RVCInference = FakeRVC
+    pkg = types.ModuleType("rvc_python")
+    pkg.infer = infer_mod
+    monkeypatch.setitem(_sys.modules, "rvc_python", pkg)
+    monkeypatch.setitem(_sys.modules, "rvc_python.infer", infer_mod)
+
+    E.RVCBackend._cache.clear()
+    monkeypatch.setattr(E, "_ENGINE", None)
+    yield calls
+    E.RVCBackend._cache.clear()
+
+
+def test_rvc_backend_is_selected_on_gpu(fake_rvc):
+    info = E.engine_info()
+    assert info["backend"] == "rvc" and info["real_clone"] and info["gpu"]
+
+
+def test_rvc_backend_passes_correct_params(fake_rvc, tmp_path, male_wav):
+    md = tmp_path / "m"
+    md.mkdir()
+    (md / "model.pth").write_bytes(b"w")
+    (md / "added.index").write_bytes(b"i")
+    src = tmp_path / "in.wav"
+    sf.write(src, male_wav, SR)
+
+    res = E.run_conversion(src, md, E.ConvertParams(pitch=7, protect=0.4).clamp(),
+                           tmp_path / "out.wav", lambda p, m: None)
+    assert res["backend"] == "rvc" and res["real_clone"]
+    assert fake_rvc["device"] == "cuda:0"
+    assert fake_rvc["index"].endswith(".index")
+    p = fake_rvc["params"]
+    assert p["f0up_key"] == 7 and p["protect"] == 0.4 and p["f0method"] == "rmvpe"
+
+
+def test_rvc_backend_chunks_long_audio(fake_rvc, tmp_path, male_wav):
+    md = tmp_path / "m"
+    md.mkdir()
+    (md / "model.pth").write_bytes(b"w")
+    long = np.tile(male_wav, 30)               # ~180 s
+    src = tmp_path / "long.wav"
+    sf.write(src, long, SR)
+
+    res = E.run_conversion(src, md, E.ConvertParams().clamp(),
+                           tmp_path / "o.wav", lambda p, m: None)
+    assert fake_rvc["chunks"] > 1
+    out, osr = sf.read(res["output"])
+    assert abs(len(out) / osr - len(long) / SR) < 5    # nothing dropped
+
+
+def test_rvc_backend_caches_model_across_files(fake_rvc, tmp_path, male_wav):
+    md = tmp_path / "m"
+    md.mkdir()
+    (md / "model.pth").write_bytes(b"w")
+    src = tmp_path / "in.wav"
+    sf.write(src, male_wav, SR)
+
+    for i in range(3):
+        E.run_conversion(src, md, E.ConvertParams().clamp(),
+                         tmp_path / f"o{i}.wav", lambda p, m: None)
+    assert fake_rvc["loads"] == 1, "weights must load once, not per file"
+
+
+def test_rvc_backend_requires_weights(fake_rvc, tmp_path, male_wav):
+    md = tmp_path / "empty"
+    md.mkdir()
+    src = tmp_path / "in.wav"
+    sf.write(src, male_wav, SR)
+    with pytest.raises(FileNotFoundError):
+        E.run_conversion(src, md, E.ConvertParams().clamp(),
+                         tmp_path / "o.wav", lambda p, m: None)
+
+
+def test_module_present_never_raises(monkeypatch):
+    import sys as _sys
+    import types
+
+    broken = types.ModuleType("brokenmod")
+    broken.__spec__ = None
+    monkeypatch.setitem(_sys.modules, "brokenmod", broken)
+    assert E._module_present("brokenmod") is True
+    assert E._module_present("definitely_not_installed_xyz") is False
