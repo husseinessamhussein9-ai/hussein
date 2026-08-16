@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>RVC Studio — Voice Conversion & Training</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">RVC</div>
+      <div>
+        <h1>RVC Studio</h1>
+        <p id="brandStatus">connecting…</p>
+      </div>
+    </div>
+
+    <nav class="nav">
+      <button class="nav-item active" data-view="convert"><span>◉</span> Convert</button>
+      <button class="nav-item" data-view="models"><span>◈</span> Models</button>
+      <button class="nav-item" data-view="train"><span>▲</span> Train</button>
+      <button class="nav-item" data-view="library"><span>♪</span> Library</button>
+      <button class="nav-item" data-view="jobs"><span>≡</span> Jobs <b id="jobBadge" class="badge hidden">0</b></button>
+    </nav>
+
+    <div class="sys" id="sysInfo"></div>
+    <div class="sidebar-foot">
+      <a href="/docs" target="_blank">API docs ↗</a>
+    </div>
+  </aside>
+
+  <main class="main">
+    <!-- ============================ CONVERT ============================ -->
+    <section class="view active" id="view-convert">
+      <header class="view-head">
+        <h2>Convert voice</h2>
+        <p>Drop any audio or video file, pick a voice, hit convert. Batch and long files supported.</p>
+      </header>
+
+      <div class="grid">
+        <div class="col-main">
+          <div class="card">
+            <div class="dropzone" id="convDrop">
+              <input type="file" id="convFiles" multiple accept="audio/*,video/*" hidden />
+              <div class="dz-inner">
+                <div class="dz-icon">⇪</div>
+                <strong>Drop audio files here</strong>
+                <span>or click to browse · wav, mp3, flac, m4a, ogg, mp4 · batch supported</span>
+              </div>
+            </div>
+            <div id="fileList" class="file-list"></div>
+            <div class="rec-row">
+              <button class="btn ghost" id="recBtn">● Record from microphone</button>
+              <span id="recTime" class="mono"></span>
+            </div>
+          </div>
+
+          <div class="card" id="analysisCard" hidden>
+            <h3>Input analysis</h3>
+            <div class="stat-grid" id="analysisStats"></div>
+            <div id="analysisWarn"></div>
+          </div>
+        </div>
+
+        <div class="col-side">
+          <div class="card">
+            <h3>Voice model</h3>
+            <select id="modelSelect" class="input"></select>
+            <p class="hint" id="modelHint">No model = processing only.</p>
+
+            <div class="field">
+              <label class="row-between">
+                <span>Pitch (semitones)</span>
+                <output id="pitchOut" class="mono">0</output>
+              </label>
+              <input type="range" id="pitch" min="-24" max="24" step="1" value="0" />
+              <div class="preset-row">
+                <button class="chip" data-pitch="0">same gender</button>
+                <button class="chip" data-pitch="-12">F→M</button>
+                <button class="chip" data-pitch="12">M→F</button>
+                <button class="chip primary" id="autoPitchBtn">auto ✦</button>
+              </div>
+            </div>
+
+            <details class="advanced">
+              <summary>Advanced settings</summary>
+              <div class="field">
+                <label class="row-between"><span>Index rate</span><output id="indexOut" class="mono">0.66</output></label>
+                <input type="range" id="index_rate" min="0" max="1" step="0.01" value="0.66" />
+              </div>
+              <div class="field">
+                <label class="row-between"><span>Protect consonants</span><output id="protectOut" class="mono">0.33</output></label>
+                <input type="range" id="protect" min="0" max="0.5" step="0.01" value="0.33" />
+              </div>
+              <div class="field">
+                <label class="row-between"><span>Keep source dynamics</span><output id="rmsOut" class="mono">0.25</output></label>
+                <input type="range" id="rms_mix_rate" min="0" max="1" step="0.01" value="0.25" />
+              </div>
+              <div class="field">
+                <label class="row-between"><span>Filter radius</span><output id="frOut" class="mono">3</output></label>
+                <input type="range" id="filter_radius" min="0" max="7" step="1" value="3" />
+              </div>
+              <div class="field">
+                <label>Pitch algorithm</label>
+                <select id="f0_method" class="input">
+                  <option value="rmvpe">RMVPE — best overall</option>
+                  <option value="crepe">CREPE — smooth, slower</option>
+                  <option value="harvest">Harvest — robust bass</option>
+                  <option value="pm">PM — fastest</option>
+                </select>
+              </div>
+              <label class="check"><input type="checkbox" id="denoise" checked /> Clean up input (HPF + DC)</label>
+              <label class="check"><input type="checkbox" id="trim_silence" /> Trim leading/trailing silence</label>
+              <div class="field">
+                <label>Output format</label>
+                <select id="output_format" class="input">
+                  <option value="wav">WAV — lossless</option>
+                  <option value="flac">FLAC</option>
+                  <option value="mp3">MP3 320k</option>
+                  <option value="ogg">OGG</option>
+                </select>
+              </div>
+            </details>
+
+            <button class="btn primary big" id="convertBtn">Convert</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" id="convResults" hidden>
+        <h3>Results</h3>
+        <div id="convResultList"></div>
+      </div>
+    </section>
+
+    <!-- ============================ MODELS ============================ -->
+    <section class="view" id="view-models">
+      <header class="view-head">
+        <h2>Voice models</h2>
+        <p>Import .pth/.index models or full zips — from your disk or a direct URL.</p>
+      </header>
+
+      <div class="grid">
+        <div class="col-main">
+          <div class="card">
+            <h3>Installed</h3>
+            <div id="modelList" class="model-list"></div>
+          </div>
+        </div>
+        <div class="col-side">
+          <div class="card">
+            <h3>Import from file</h3>
+            <input class="input" id="impName" placeholder="Model name" />
+            <input class="input" type="file" id="impFile" accept=".zip,.pth,.index" />
+            <button class="btn" id="impFileBtn">Import file</button>
+          </div>
+          <div class="card">
+            <h3>Import from URL</h3>
+            <input class="input" id="urlName" placeholder="Model name" />
+            <input class="input" id="urlValue" placeholder="https://…/model.zip" />
+            <button class="btn" id="impUrlBtn">Download & import</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ TRAIN ============================ -->
+    <section class="view" id="view-train">
+      <header class="view-head">
+        <h2>Train a voice</h2>
+        <p>Upload raw recordings — slicing, cleaning and quality scoring happen automatically.</p>
+      </header>
+
+      <div class="grid">
+        <div class="col-main">
+          <div class="card">
+            <h3>1 · Build dataset</h3>
+            <input class="input" id="dsName" placeholder="Dataset name e.g. hussein-voice" />
+            <div class="dropzone small" id="dsDrop">
+              <input type="file" id="dsFiles" multiple accept="audio/*,video/*" hidden />
+              <div class="dz-inner"><strong>Drop raw recordings</strong><span>10+ minutes of clean speech recommended</span></div>
+            </div>
+            <div id="dsFileList" class="file-list"></div>
+            <div class="row">
+              <label class="check"><input type="checkbox" id="dsDenoise" checked /> Clean audio</label>
+              <label class="check"><input type="checkbox" id="dsTrim" checked /> Trim silence</label>
+            </div>
+            <button class="btn" id="prepBtn">Prepare dataset</button>
+          </div>
+
+          <div class="card">
+            <h3>2 · Train</h3>
+            <div class="row">
+              <select id="dsSelect" class="input"></select>
+              <input class="input" id="trainModelName" placeholder="New model name" />
+            </div>
+            <div id="recoBox" class="reco hidden"></div>
+            <div class="row">
+              <div class="field grow">
+                <label class="row-between"><span>Epochs</span><output id="epochsOut" class="mono">200</output></label>
+                <input type="range" id="epochs" min="20" max="800" step="10" value="200" />
+              </div>
+              <div class="field grow">
+                <label class="row-between"><span>Batch size</span><output id="bsOut" class="mono">8</output></label>
+                <input type="range" id="batch_size" min="1" max="24" step="1" value="8" />
+              </div>
+            </div>
+            <button class="btn primary" id="trainBtn">Start training</button>
+          </div>
+        </div>
+
+        <div class="col-side">
+          <div class="card">
+            <h3>Datasets</h3>
+            <div id="dsList" class="model-list"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ LIBRARY ============================ -->
+    <section class="view" id="view-library">
+      <header class="view-head">
+        <h2>Output library</h2>
+        <p>Every conversion is kept here — play, download or delete.</p>
+      </header>
+      <div class="card"><div id="outputList" class="output-list"></div></div>
+    </section>
+
+    <!-- ============================ JOBS ============================ -->
+    <section class="view" id="view-jobs">
+      <header class="view-head">
+        <h2>Jobs</h2>
+        <p>Everything runs in the background — close the tab, progress keeps going.</p>
+        <button class="btn ghost small" id="clearJobs">Clear finished</button>
+      </header>
+      <div class="card"><div id="jobList" class="job-list"></div></div>
+    </section>
+  </main>
+</div>
+
+<div id="toasts" class="toasts"></div>
+<script src="/static/app.js"></script>
+</body>
+</html>
