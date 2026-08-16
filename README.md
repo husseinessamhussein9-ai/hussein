@@ -27,6 +27,8 @@ Web UI · REST API · CLI · background job queue · batch processing · dataset
 
 ---
 
+## التشغيل بالعربي: [START_HERE_AR.md](START_HERE_AR.md)
+
 ## Quick start
 
 ```bash
