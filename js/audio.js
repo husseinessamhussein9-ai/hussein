@@ -29,6 +29,8 @@ export class AudioEngine {
     this.treble = 0;
     this.ready = false;
     this._lastBeat = 0;
+    this.sections = [];
+    this.envelope = [];
   }
 
   async setup() {
@@ -94,6 +96,7 @@ export class AudioEngine {
       bpm: this.bpm,
       t: this.el.currentTime || 0,
       dur: this.el.duration || 0,
+      section: this.sectionAt(this.el.currentTime || 0),
     };
   }
 
@@ -178,8 +181,72 @@ export class AudioEngine {
     else if (this.bpm > 118 && this.energy < 0.5) this.mood = "cosmos";
     else this.mood = "cinematic";
 
+    this._buildSections(env, step / sr, decoded.duration);
     offline.close?.();
     return this.summary();
+  }
+
+  _buildSections(env, dt, duration) {
+    const win = Math.max(1, Math.round(1.6 / dt));
+    const smooth = [];
+    for (let i = 0; i < env.length; i += win) {
+      let s = 0;
+      let n = 0;
+      for (let j = i; j < Math.min(env.length, i + win); j++, n++) s += env[j];
+      smooth.push({ t: i * dt, e: s / Math.max(1, n) });
+    }
+    this.envelope = smooth;
+    const vals = smooth.map((x) => x.e).sort((a, b) => a - b);
+    const q = (p) => vals[Math.min(vals.length - 1, Math.floor(vals.length * p))] || 0;
+    const hi = q(0.72);
+    const lo = q(0.32);
+    const styles = ["cinematic", "gold", "romance", "ocean", "cosmos", "neon", "fire"];
+    const chunks = [];
+    let cur = null;
+    for (const s of smooth) {
+      let type = "verse";
+      let style = this.mood;
+      if (s.t < 8) {
+        type = "intro";
+        style = this.mood === "fire" ? "cinematic" : this.mood;
+      } else if (duration - s.t < 10) {
+        type = "outro";
+        style = "cinematic";
+      } else if (s.e >= hi) {
+        type = "chorus";
+        style = this.energy > 0.55 ? "fire" : "gold";
+      } else if (s.e <= lo) {
+        type = "break";
+        style = this.bpm > 118 ? "cosmos" : "ocean";
+      } else {
+        style = styles[Math.floor((s.t / Math.max(1, duration)) * styles.length) % styles.length];
+      }
+      if (!cur || cur.type !== type) {
+        if (cur) {
+          cur.end = s.t;
+          chunks.push(cur);
+        }
+        cur = { start: s.t, end: s.t, type, style, energy: s.e };
+      } else {
+        cur.end = s.t;
+        cur.energy = (cur.energy + s.e) / 2;
+      }
+    }
+    if (cur) {
+      cur.end = duration;
+      chunks.push(cur);
+    }
+    this.sections = chunks.filter((c) => c.end - c.start > 1.2);
+    if (!this.sections.length) {
+      this.sections = [{ start: 0, end: duration || 1, type: "verse", style: this.mood, energy: this.energy }];
+    }
+  }
+
+  sectionAt(t) {
+    const s = this.sections.find((x) => t >= x.start && t < x.end);
+    return s || this.sections[this.sections.length - 1] || {
+      start: 0, end: 1, type: "verse", style: this.mood, energy: this.energy,
+    };
   }
 
   summary() {
@@ -189,6 +256,7 @@ export class AudioEngine {
       moodAr: MOODS[this.mood]?.ar || "سينمائي",
       energy: this.energy,
       duration: this.el.duration || 0,
+      sections: this.sections.length,
     };
   }
 }

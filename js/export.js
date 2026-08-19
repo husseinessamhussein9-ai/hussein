@@ -20,6 +20,7 @@ export async function recordVideo({
   audio,
   audioEl,
   seconds,
+  quality = "720",
   onProgress,
 }) {
   const mime = pickMime();
@@ -35,7 +36,7 @@ export async function recordVideo({
   const chunks = [];
   const rec = new MediaRecorder(mixed, {
     mimeType: mime,
-    videoBitsPerSecond: 6_000_000,
+    videoBitsPerSecond: quality === "1080" ? 10_000_000 : 6_000_000,
     audioBitsPerSecond: 192_000,
   });
   rec.ondataavailable = (e) => {

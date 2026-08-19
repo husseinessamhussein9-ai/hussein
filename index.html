@@ -3,17 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>نَغَم — ارفع الأغنية، وخد الفيديو</title>
-  <meta name="description" content="موقع مجاني تمامًا: ارفع أغنيتك وهيتعمل فيديو يليق بيها حسب الإيقاع والمزاج. من غير تسجيل ومن غير علامة مائية." />
+  <title>نَغَم — استوديو فيديو الأغاني</title>
+  <meta name="description" content="استوديو مجاني فاخر: ارفع الأغنية، حط الكلمات أو استخرجها بالذكاء الاصطناعي، والمخرج الذكي يعمل كليب سينمائي." />
   <meta name="theme-color" content="#07060a" />
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="assets/og-cover.jpg" />
-  <meta property="og:title" content="نَغَم — فيديو من أغنيتك" />
-  <meta property="og:description" content="ارفع الأغنية. هنعمل فيديو يليق بيها. مجانًا تمامًا." />
-  <meta property="og:image" content="assets/og-cover.jpg" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Cairo:wght@300;400;600;700;800;900&family=Tajawal:wght@400;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
@@ -24,19 +21,19 @@
     <a class="brand" href="./" aria-label="نغم">
       <span class="brand-mark" aria-hidden="true"></span>
       <span class="brand-name">نَغَم</span>
+      <span class="brand-sub">Studio</span>
     </a>
-    <p class="top-note">مجاني · الأغنية متتفضلش على سيرفر · من غير علامة مائية</p>
+    <p class="top-note">ذكاء اصطناعي على جهازك · كلمات كاريوكي · من غير علامة مائية</p>
   </header>
 
   <main>
     <section id="gate" class="gate">
-      <p class="eyebrow">مولّد فيديو الأغاني</p>
-      <h1>ارفع الأغنية.<br /><em>هنعمل فيديو يليق بيها.</em></h1>
+      <p class="eyebrow">استوديو كليب فاخر</p>
+      <h1>ارفع الأغنية.<br /><em>المخرج الذكي يبني الفيديو.</em></h1>
       <p class="lede">
-        الموقع بيسمع الإيقاع والطاقة والمزاج، ويولّد كليب سينمائي متزامن مع الأغنية.
-        كل حاجة بتتعمل على جهازك. مجانًا تمامًا.
+        تحليل إيقاع ومزاج ومقاطع الكورس، كلمات تظهر مع الصوت، وسبع عوالم سينمائية.
+        كل حاجة مجانًا وجوّه المتصفح.
       </p>
-
       <label class="drop" id="drop">
         <input id="file" type="file" accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac,.opus" hidden />
         <span class="drop-ring" aria-hidden="true"></span>
@@ -50,12 +47,12 @@
         <strong>اضغط أو اسحب الأغنية هنا</strong>
         <small>MP3 · WAV · M4A · OGG · FLAC</small>
       </label>
-
       <ul class="pills">
-        <li>تحليل إيقاع تلقائي</li>
-        <li>7 ستايلات سينمائية</li>
-        <li>يوتيوب وتيك توك وريلز</li>
-        <li>تحميل مباشر</li>
+        <li>مخرج AI للمشاهد</li>
+        <li>استخراج الكلمات</li>
+        <li>كاريوكي عربي</li>
+        <li>720 و 1080</li>
+        <li>تيك توك ويوتيوب</li>
       </ul>
     </section>
 
@@ -68,7 +65,6 @@
             <p id="veilText">بنجهّز الأغنية…</p>
           </div>
         </div>
-
         <div class="transport">
           <button type="button" class="icon-btn" id="playBtn" aria-label="تشغيل">
             <svg id="iconPlay" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5-11-6.5z"/></svg>
@@ -84,54 +80,139 @@
           <div><span>المدة</span><b id="statDur">—</b></div>
           <div><span>الإيقاع</span><b id="statBpm">—</b></div>
           <div><span>المزاج</span><b id="statMood">—</b></div>
-          <div><span>الطاقة</span><b id="statEnergy">—</b></div>
+          <div><span>المقاطع</span><b id="statEnergy">—</b></div>
         </div>
 
-        <label class="field">
-          <span>اسم الأغنية</span>
-          <input id="titleIn" type="text" maxlength="80" placeholder="اسم الأغنية" />
-        </label>
-        <label class="field">
-          <span>الفنان</span>
-          <input id="artistIn" type="text" maxlength="60" placeholder="اختياري" />
-        </label>
-
-        <fieldset class="field">
-          <legend>الستايل</legend>
-          <div class="styles" id="styles"></div>
-        </fieldset>
-
-        <fieldset class="field">
-          <legend>المقاس</legend>
-          <div class="seg" id="ratios">
-            <button type="button" data-ratio="16:9" class="on">يوتيوب 16:9</button>
-            <button type="button" data-ratio="9:16">تيك توك 9:16</button>
-            <button type="button" data-ratio="1:1">مربع 1:1</button>
-          </div>
-        </fieldset>
-
-        <fieldset class="field">
-          <legend>مدة الفيديو</legend>
-          <div class="seg" id="lengths">
-            <button type="button" data-len="15">15 ث</button>
-            <button type="button" data-len="30" class="on">30 ث</button>
-            <button type="button" data-len="60">60 ث</button>
-            <button type="button" data-len="full">الأغنية كلها</button>
-          </div>
-        </fieldset>
-
-        <button type="button" class="cta" id="exportBtn">
-          <span id="exportLabel">نزّل الفيديو</span>
-          <small id="exportHint">WebM بجودة عالية · من غير علامة مائية</small>
-        </button>
-
-        <div class="export-bar" id="exportBar" hidden>
-          <div class="export-fill" id="exportFill"></div>
-          <span id="exportProg">0%</span>
+        <div class="tabs" id="tabs">
+          <button type="button" data-tab="look" class="on">المشهد</button>
+          <button type="button" data-tab="words">الكلمات</button>
+          <button type="button" data-tab="out">التصدير</button>
         </div>
 
-        <p class="fine" id="fileName"></p>
-        <button type="button" class="ghost" id="againBtn">أغنية تانية</button>
+        <div class="pane" data-pane="look">
+          <label class="field">
+            <span>اسم الأغنية</span>
+            <input id="titleIn" type="text" maxlength="80" placeholder="اسم الأغنية" />
+          </label>
+          <label class="field">
+            <span>الفنان</span>
+            <input id="artistIn" type="text" maxlength="60" placeholder="اختياري" />
+          </label>
+
+          <fieldset class="field">
+            <legend>الستايل</legend>
+            <div class="styles" id="styles"></div>
+          </fieldset>
+
+          <fieldset class="field">
+            <legend>المقاس</legend>
+            <div class="seg" id="ratios">
+              <button type="button" data-ratio="16:9" class="on">يوتيوب 16:9</button>
+              <button type="button" data-ratio="9:16">تيك توك 9:16</button>
+              <button type="button" data-ratio="1:1">مربع 1:1</button>
+            </div>
+          </fieldset>
+
+          <div class="two">
+            <label class="field">
+              <span>الخط</span>
+              <select id="fontIn">
+                <option value="Cairo">Cairo</option>
+                <option value="Amiri">أميري فاخر</option>
+                <option value="Tajawal">تجوّال</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>لون الذهب</span>
+              <input id="accentIn" type="color" value="#e0b35a" />
+            </label>
+          </div>
+
+          <label class="field">
+            <span>شدة الحركة <b id="intVal">100%</b></span>
+            <input id="intensity" class="seek" type="range" min="40" max="160" value="100" />
+          </label>
+
+          <div class="checks">
+            <label><input type="checkbox" id="chkSpectrum" checked /> الطيف الدائري</label>
+            <label><input type="checkbox" id="chkLetter" checked /> إطار سينمائي</label>
+            <label><input type="checkbox" id="chkProgress" checked /> شريط التقدم</label>
+            <label><input type="checkbox" id="chkIntro" checked /> كارت البداية</label>
+            <label><input type="checkbox" id="chkEnd" checked /> كارت النهاية</label>
+          </div>
+
+          <div class="two">
+            <label class="field file-mini">
+              <span>غلاف الأغنية</span>
+              <input id="coverIn" type="file" accept="image/*" />
+            </label>
+            <label class="field file-mini">
+              <span>خلفية خاصة</span>
+              <input id="bgIn" type="file" accept="image/*" />
+            </label>
+          </div>
+        </div>
+
+        <div class="pane" data-pane="words" hidden>
+          <p class="hint">الصق الكلمات، أو استخرجها بالذكاء الاصطناعي من صوت الأغنية، أو هاتنها بالاسم.</p>
+          <textarea id="lyricsIn" rows="9" placeholder="سطر لكل جملة…&#10;الليل طويل وأنا سايبك&#10;والقلب لسه بيناديك"></textarea>
+          <fieldset class="field">
+            <legend>لغة الاستخراج</legend>
+            <div class="seg" id="langs">
+              <button type="button" data-lang="ar" class="on">عربي</button>
+              <button type="button" data-lang="en">English</button>
+              <button type="button" data-lang="auto">تلقائي</button>
+            </div>
+          </fieldset>
+          <div class="row-btns">
+            <button type="button" class="ghost-btn" id="aiBtn">استخرج بالذكاء الاصطناعي</button>
+            <button type="button" class="ghost-btn" id="fetchBtn">هات الكلمات بالاسم</button>
+          </div>
+          <p class="fine" id="lyricStatus"></p>
+          <fieldset class="field">
+            <legend>شكل الكلمات</legend>
+            <div class="seg" id="lyricStyles">
+              <button type="button" data-ls="karaoke" class="on">كاريوكي</button>
+              <button type="button" data-ls="cinematic">سينمائي</button>
+              <button type="button" data-ls="kinetic">حركة</button>
+              <button type="button" data-ls="elegant">أنيق</button>
+            </div>
+          </fieldset>
+          <label class="field">
+            <span>حجم الكلام <b id="lySizeVal">100%</b></span>
+            <input id="lyricSize" class="seek" type="range" min="70" max="160" value="100" />
+          </label>
+          <button type="button" class="ghost-btn" id="applyLyrics">طبّق التوقيت على الإيقاع</button>
+        </div>
+
+        <div class="pane" data-pane="out" hidden>
+          <fieldset class="field">
+            <legend>مدة الفيديو</legend>
+            <div class="seg" id="lengths">
+              <button type="button" data-len="15">15 ث</button>
+              <button type="button" data-len="30" class="on">30 ث</button>
+              <button type="button" data-len="60">60 ث</button>
+              <button type="button" data-len="full">الأغنية كلها</button>
+            </div>
+          </fieldset>
+          <fieldset class="field">
+            <legend>الجودة</legend>
+            <div class="seg" id="quals">
+              <button type="button" data-q="720" class="on">720p أسرع</button>
+              <button type="button" data-q="1080">1080p فاخر</button>
+            </div>
+          </fieldset>
+          <button type="button" class="cta" id="exportBtn">
+            <span id="exportLabel">نزّل الفيديو</span>
+            <small id="exportHint">من غير علامة مائية · الصوت جوّه الفيديو</small>
+          </button>
+          <div class="export-bar" id="exportBar" hidden>
+            <div class="export-fill" id="exportFill"></div>
+            <span id="exportProg">0%</span>
+          </div>
+          <p class="fine" id="fileName"></p>
+          <button type="button" class="ghost" id="againBtn">أغنية تانية</button>
+        </div>
       </aside>
     </section>
 
@@ -146,7 +227,7 @@
   </main>
 
   <footer class="foot">
-    <p>نَغَم بيشتغل كله جوّه المتصفح. الأغنية مش بتتبعت لأي سيرفر.</p>
+    <p>نَغَم ستوديو · الذكاء الاصطناعي والكلمات بيشتغلوا على جهازك. الأغنية مش بتتبعت لسيرفرنا.</p>
   </footer>
 
   <audio id="audio" preload="auto" crossorigin="anonymous"></audio>

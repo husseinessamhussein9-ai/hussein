@@ -1,55 +1,45 @@
-import { AudioEngine, MOODS } from "./audio.js";
+import { AudioEngine } from "./audio.js";
 import { VisualEngine, STYLES } from "./visuals.js";
 import { recordVideo } from "./export.js";
+import { timeLyrics, fetchLyrics } from "./lyrics.js";
+import { transcribeSong } from "./ai.js";
 
 const $ = (id) => document.getElementById(id);
 
 const ui = {
-  gate: $("gate"),
-  studio: $("studio"),
-  done: $("done"),
-  file: $("file"),
-  drop: $("drop"),
-  audio: $("audio"),
-  view: $("view"),
-  veil: $("veil"),
-  veilText: $("veilText"),
-  playBtn: $("playBtn"),
-  iconPlay: $("iconPlay"),
-  iconPause: $("iconPause"),
-  timeLabel: $("timeLabel"),
-  seek: $("seek"),
-  titleIn: $("titleIn"),
-  artistIn: $("artistIn"),
-  styles: $("styles"),
-  ratios: $("ratios"),
-  lengths: $("lengths"),
-  exportBtn: $("exportBtn"),
-  exportLabel: $("exportLabel"),
-  exportHint: $("exportHint"),
-  exportBar: $("exportBar"),
-  exportFill: $("exportFill"),
-  exportProg: $("exportProg"),
-  fileName: $("fileName"),
-  againBtn: $("againBtn"),
-  backBtn: $("backBtn"),
-  outVid: $("outVid"),
-  dlLink: $("dlLink"),
-  statDur: $("statDur"),
-  statBpm: $("statBpm"),
-  statMood: $("statMood"),
-  statEnergy: $("statEnergy"),
-  ambient: $("ambient"),
+  gate: $("gate"), studio: $("studio"), done: $("done"),
+  file: $("file"), drop: $("drop"), audio: $("audio"),
+  view: $("view"), veil: $("veil"), veilText: $("veilText"),
+  playBtn: $("playBtn"), iconPlay: $("iconPlay"), iconPause: $("iconPause"),
+  timeLabel: $("timeLabel"), seek: $("seek"),
+  titleIn: $("titleIn"), artistIn: $("artistIn"),
+  styles: $("styles"), ratios: $("ratios"), lengths: $("lengths"),
+  exportBtn: $("exportBtn"), exportLabel: $("exportLabel"), exportHint: $("exportHint"),
+  exportBar: $("exportBar"), exportFill: $("exportFill"), exportProg: $("exportProg"),
+  fileName: $("fileName"), againBtn: $("againBtn"), backBtn: $("backBtn"),
+  outVid: $("outVid"), dlLink: $("dlLink"),
+  statDur: $("statDur"), statBpm: $("statBpm"), statMood: $("statMood"), statEnergy: $("statEnergy"),
+  ambient: $("ambient"), lyricsIn: $("lyricsIn"), lyricStatus: $("lyricStatus"),
+  aiBtn: $("aiBtn"), fetchBtn: $("fetchBtn"), applyLyrics: $("applyLyrics"),
+  fontIn: $("fontIn"), accentIn: $("accentIn"), intensity: $("intensity"), intVal: $("intVal"),
+  lyricSize: $("lyricSize"), lySizeVal: $("lySizeVal"),
+  coverIn: $("coverIn"), bgIn: $("bgIn"),
+  chkSpectrum: $("chkSpectrum"), chkLetter: $("chkLetter"), chkProgress: $("chkProgress"),
+  chkIntro: $("chkIntro"), chkEnd: $("chkEnd"),
 };
 
 const state = {
-  style: "auto",
+  style: "director",
   ratio: "16:9",
   length: 30,
+  quality: "720",
+  lang: "ar",
+  lyricStyle: "karaoke",
   objectUrl: "",
   lastBlobUrl: "",
   exporting: false,
   raf: 0,
+  timedLyrics: [],
 };
 
 const audio = new AudioEngine(ui.audio);
@@ -62,12 +52,6 @@ function fmt(t) {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-function energyWord(e) {
-  if (e > 0.62) return "عالية";
-  if (e > 0.38) return "متوسطة";
-  return "هادية";
-}
-
 function paintStyles() {
   ui.styles.innerHTML = "";
   for (const s of STYLES) {
@@ -78,25 +62,32 @@ function paintStyles() {
     b.style.setProperty("--thumb", `url("${s.thumb}")`);
     b.addEventListener("click", () => {
       state.style = s.id;
-      applyStyle();
+      applyLook();
       paintStyles();
     });
     ui.styles.appendChild(b);
   }
 }
 
-function applyStyle() {
+function applyLook() {
   const resolved = state.style === "auto" ? (audio.mood || "cinematic") : state.style;
+  visual.setSize(state.ratio, state.exporting ? state.quality : "720");
   visual.setMeta({
     title: ui.titleIn.value.trim(),
     artist: ui.artistIn.value.trim(),
     style: resolved,
+    lyrics: state.timedLyrics,
+    lyricStyle: state.lyricStyle,
+    lyricScale: Number(ui.lyricSize.value) / 100,
+    fontFamily: ui.fontIn.value,
+    showSpectrum: ui.chkSpectrum.checked,
+    showProgress: ui.chkProgress.checked,
+    showLetterbox: ui.chkLetter.checked,
+    introCard: ui.chkIntro.checked,
+    endCard: ui.chkEnd.checked,
+    intensity: Number(ui.intensity.value) / 100,
+    accent: ui.accentIn.value,
   });
-  visual.setSize(state.ratio);
-  syncView();
-}
-
-function syncView() {
   ui.view.width = visual.w;
   ui.view.height = visual.h;
 }
@@ -107,14 +98,14 @@ function clipSeconds() {
   return Math.max(5, Math.min(Number(state.length), dur || Number(state.length)));
 }
 
-function bindSeg(root, attr, key) {
+function bindSeg(root, attr, key, extra) {
   root.addEventListener("click", (e) => {
     const btn = e.target.closest("button");
     if (!btn) return;
     root.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b === btn));
     const val = btn.dataset[attr];
-    state[key] = attr === "len" && val !== "full" ? Number(val) : val;
-    if (key === "ratio") applyStyle();
+    state[key] = extra ? extra(val) : val;
+    applyLook();
   });
 }
 
@@ -126,14 +117,8 @@ function setPlaying(on) {
 function loop() {
   state.raf = requestAnimationFrame(loop);
   const data = audio.sample();
-  visual.setMeta({
-    title: ui.titleIn.value.trim(),
-    artist: ui.artistIn.value.trim(),
-    style: state.style === "auto" ? (audio.mood || "cinematic") : state.style,
-  });
   visual.draw(data, performance.now() / 1000);
-  const vctx = ui.view.getContext("2d");
-  vctx.drawImage(visual.canvas, 0, 0, ui.view.width, ui.view.height);
+  ui.view.getContext("2d").drawImage(visual.canvas, 0, 0, ui.view.width, ui.view.height);
   if (!state.exporting) {
     ui.timeLabel.textContent = `${fmt(ui.audio.currentTime)} / ${fmt(ui.audio.duration)}`;
     if (ui.audio.duration) {
@@ -144,9 +129,20 @@ function loop() {
 
 function startLoop() {
   cancelAnimationFrame(state.raf);
-  visual.setSize(state.ratio);
-  syncView();
+  applyLook();
   loop();
+}
+
+function applyTiming() {
+  const raw = ui.lyricsIn.value.trim();
+  if (!raw) {
+    state.timedLyrics = [];
+    applyLook();
+    return;
+  }
+  state.timedLyrics = timeLyrics(raw, ui.audio.duration || 30, audio.bpm || 110);
+  ui.lyricStatus.textContent = `${state.timedLyrics.length} سطر متزامن مع الإيقاع`;
+  applyLook();
 }
 
 async function loadFile(file) {
@@ -172,11 +168,9 @@ async function loadFile(file) {
   await audio.setup();
   await audio.resume();
 
-  let buf;
   try {
-    buf = await file.arrayBuffer();
-    ui.veilText.textContent = "بنسمع الإيقاع والمزاج…";
-    await audio.analyzeBuffer(buf);
+    ui.veilText.textContent = "الذكاء الاصطناعي بيسمع الإيقاع والكورس…";
+    await audio.analyzeBuffer(await file.arrayBuffer());
   } catch {
     audio.bpm = 110;
     audio.mood = "cinematic";
@@ -186,31 +180,35 @@ async function loadFile(file) {
   ui.statDur.textContent = fmt(ui.audio.duration);
   ui.statBpm.textContent = sum.bpm ? `${sum.bpm} BPM` : "—";
   ui.statMood.textContent = sum.moodAr;
-  ui.statEnergy.textContent = energyWord(sum.energy);
-  applyStyle();
+  ui.statEnergy.textContent = sum.sections ? `${sum.sections} مشهد` : "—";
+  applyTiming();
   ui.veil.hidden = true;
   startLoop();
 }
 
+function readImage(file) {
+  return new Promise((resolve) => {
+    if (!file) return resolve(null);
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = URL.createObjectURL(file);
+  });
+}
+
 async function exportClip() {
-  if (state.exporting) return;
-  if (!ui.audio.src) return;
+  if (state.exporting || !ui.audio.src) return;
   state.exporting = true;
   ui.exportBtn.disabled = true;
   ui.exportLabel.textContent = "بنصوّر الفيديو…";
   ui.exportHint.textContent = "سيّب التبويب مفتوح لحد ما يخلّص";
   ui.exportBar.hidden = false;
   ui.playBtn.disabled = true;
-
-  applyStyle();
+  applyLook();
   const seconds = clipSeconds();
-
   try {
     const { blob, ext } = await recordVideo({
-      visual,
-      audio,
-      audioEl: ui.audio,
-      seconds,
+      visual, audio, audioEl: ui.audio, seconds, quality: state.quality,
       onProgress: (p) => {
         ui.exportFill.style.width = `${Math.round(p * 100)}%`;
         ui.exportProg.textContent = `${Math.round(p * 100)}%`;
@@ -230,9 +228,10 @@ async function exportClip() {
     state.exporting = false;
     ui.exportBtn.disabled = false;
     ui.exportLabel.textContent = "نزّل الفيديو";
-    ui.exportHint.textContent = "WebM بجودة عالية · من غير علامة مائية";
+    ui.exportHint.textContent = "من غير علامة مائية · الصوت جوّه الفيديو";
     ui.playBtn.disabled = false;
     setPlaying(false);
+    applyLook();
   }
 }
 
@@ -245,22 +244,21 @@ function reset() {
   ui.gate.hidden = false;
   ui.titleIn.value = "";
   ui.artistIn.value = "";
+  ui.lyricsIn.value = "";
+  state.timedLyrics = [];
+  visual.setCover(null);
+  visual.setCustomBg(null);
   setPlaying(false);
 }
 
 function ambient() {
   const c = ui.ambient;
   const ctx = c.getContext("2d");
-  const fit = () => {
-    c.width = innerWidth;
-    c.height = innerHeight;
-  };
+  const fit = () => { c.width = innerWidth; c.height = innerHeight; };
   fit();
   addEventListener("resize", fit);
   const dots = Array.from({ length: 50 }, () => ({
-    x: Math.random(),
-    y: Math.random(),
-    r: 0.6 + Math.random() * 1.8,
+    x: Math.random(), y: Math.random(), r: 0.6 + Math.random() * 1.8,
     v: 0.00015 + Math.random() * 0.0004,
   }));
   const tick = () => {
@@ -281,22 +279,95 @@ function ambient() {
 function bind() {
   paintStyles();
   bindSeg(ui.ratios, "ratio", "ratio");
-  bindSeg(ui.lengths, "len", "length");
-  ui.titleIn.addEventListener("input", applyStyle);
-  ui.artistIn.addEventListener("input", applyStyle);
+  bindSeg($("lengths"), "len", "length", (v) => (v === "full" ? "full" : Number(v)));
+  bindSeg($("quals"), "q", "quality");
+  bindSeg($("langs"), "lang", "lang");
+  bindSeg($("lyricStyles"), "ls", "lyricStyle");
+
+  $("tabs").addEventListener("click", (e) => {
+    const btn = e.target.closest("button");
+    if (!btn) return;
+    $("tabs").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b === btn));
+    document.querySelectorAll(".pane").forEach((p) => {
+      p.hidden = p.dataset.pane !== btn.dataset.tab;
+    });
+  });
+
+  ["input", "change"].forEach((ev) => {
+    ui.titleIn.addEventListener(ev, applyLook);
+    ui.artistIn.addEventListener(ev, applyLook);
+    ui.fontIn.addEventListener(ev, applyLook);
+    ui.accentIn.addEventListener(ev, applyLook);
+    ui.intensity.addEventListener(ev, () => {
+      ui.intVal.textContent = `${ui.intensity.value}%`;
+      applyLook();
+    });
+    ui.lyricSize.addEventListener(ev, () => {
+      ui.lySizeVal.textContent = `${ui.lyricSize.value}%`;
+      applyLook();
+    });
+    [ui.chkSpectrum, ui.chkLetter, ui.chkProgress, ui.chkIntro, ui.chkEnd].forEach((el) => {
+      el.addEventListener(ev, applyLook);
+    });
+  });
+
+  ui.lyricsIn.addEventListener("change", applyTiming);
+  ui.applyLyrics.addEventListener("click", applyTiming);
+
+  ui.coverIn.addEventListener("change", async () => {
+    visual.setCover(await readImage(ui.coverIn.files[0]));
+  });
+  ui.bgIn.addEventListener("change", async () => {
+    visual.setCustomBg(await readImage(ui.bgIn.files[0]));
+    state.style = "director";
+  });
+
+  ui.aiBtn.addEventListener("click", async () => {
+    if (!state.objectUrl) return;
+    ui.aiBtn.disabled = true;
+    ui.lyricStatus.textContent = "بنحمّل الذكاء الاصطناعي… أول مرة بتاخد وقت";
+    try {
+      const { lines, raw } = await transcribeSong(state.objectUrl, {
+        language: state.lang,
+        onStatus: (s) => { ui.lyricStatus.textContent = s; },
+      });
+      ui.lyricsIn.value = raw;
+      state.timedLyrics = lines;
+      ui.lyricStatus.textContent = `اتاستخرجت ${lines.length} جملة بالذكاء الاصطناعي`;
+      applyLook();
+    } catch (err) {
+      ui.lyricStatus.textContent = err.message || "الاستخراج فشل. الصق الكلمات بإيدك.";
+    } finally {
+      ui.aiBtn.disabled = false;
+    }
+  });
+
+  ui.fetchBtn.addEventListener("click", async () => {
+    ui.fetchBtn.disabled = true;
+    ui.lyricStatus.textContent = "بندوّر على الكلمات…";
+    try {
+      const hit = await fetchLyrics(ui.artistIn.value, ui.titleIn.value);
+      ui.lyricsIn.value = hit.raw || hit.lines.map((l) => l.text).join("\n");
+      if (hit.lines) {
+        state.timedLyrics = hit.lines;
+        ui.lyricStatus.textContent = `اتجاب ${hit.lines.length} سطر متزامن`;
+      } else {
+        applyTiming();
+      }
+      applyLook();
+    } catch (err) {
+      ui.lyricStatus.textContent = err.message;
+    } finally {
+      ui.fetchBtn.disabled = false;
+    }
+  });
 
   ui.file.addEventListener("change", () => loadFile(ui.file.files[0]));
   ["dragenter", "dragover"].forEach((ev) => {
-    ui.drop.addEventListener(ev, (e) => {
-      e.preventDefault();
-      ui.drop.classList.add("over");
-    });
+    ui.drop.addEventListener(ev, (e) => { e.preventDefault(); ui.drop.classList.add("over"); });
   });
   ["dragleave", "drop"].forEach((ev) => {
-    ui.drop.addEventListener(ev, (e) => {
-      e.preventDefault();
-      ui.drop.classList.remove("over");
-    });
+    ui.drop.addEventListener(ev, (e) => { e.preventDefault(); ui.drop.classList.remove("over"); });
   });
   ui.drop.addEventListener("drop", (e) => {
     const f = e.dataTransfer.files?.[0];
@@ -307,12 +378,7 @@ function bind() {
     await audio.setup();
     await audio.resume();
     if (ui.audio.paused) {
-      try {
-        await ui.audio.play();
-        setPlaying(true);
-      } catch {
-        /* ignore */
-      }
+      try { await ui.audio.play(); setPlaying(true); } catch { /* ignore */ }
     } else {
       ui.audio.pause();
       setPlaying(false);

@@ -73,6 +73,13 @@ img { max-width: 100%; display: block; }
   letter-spacing: 0.18em;
   font-size: 15px;
 }
+.brand-sub {
+  font-size: 10px;
+  letter-spacing: 0.28em;
+  color: var(--gold);
+  font-weight: 800;
+  text-transform: uppercase;
+}
 .top-note {
   color: var(--muted);
   font-size: 12px;
@@ -262,6 +269,8 @@ h1 em {
   background: var(--glass);
   border: 1px solid var(--line);
   backdrop-filter: blur(16px);
+  max-height: calc(100vh - 90px);
+  overflow: auto;
 }
 .stats {
   display: grid;
@@ -296,7 +305,68 @@ h1 em {
   background: rgba(0,0,0,0.28);
   outline: none;
 }
-.field input:focus { border-color: rgba(224, 179, 90, 0.55); }
+.field input:focus, .field textarea:focus, .field select:focus {
+  border-color: rgba(224, 179, 90, 0.55);
+}
+.field select, .field textarea {
+  width: 100%;
+  padding: 11px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(0,0,0,0.28);
+  outline: none;
+  resize: vertical;
+}
+.field textarea { min-height: 160px; line-height: 1.7; }
+.field input[type="color"] {
+  padding: 4px;
+  height: 42px;
+  cursor: pointer;
+}
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.tabs {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--line);
+}
+.tabs button {
+  flex: 1;
+  padding: 8px 6px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--muted);
+}
+.tabs button.on {
+  background: var(--gold);
+  color: #1a1306;
+}
+.pane { display: grid; gap: 14px; }
+.hint { color: var(--muted); font-size: 12px; line-height: 1.7; }
+.checks {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.checks label { display: flex; gap: 6px; align-items: center; }
+.row-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.ghost-btn {
+  padding: 10px 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(224, 179, 90, 0.35);
+  color: var(--gold-2);
+  font-weight: 800;
+  font-size: 12px;
+  background: rgba(224, 179, 90, 0.06);
+}
+.ghost-btn:disabled { opacity: 0.5; cursor: wait; }
+.file-mini input { font-size: 11px; }
 
 .styles {
   display: grid;
