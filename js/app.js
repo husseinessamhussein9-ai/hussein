@@ -62,6 +62,103 @@ function fmt(t) {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
+const SECTION_AR = { intro: "مقدمة", verse: "مقطع", chorus: "كورس", break: "استراحة", outro: "قفلة" };
+
+function toast(msg) {
+  if (!ui.toast) return;
+  ui.toast.hidden = false;
+  ui.toast.textContent = msg;
+  clearTimeout(state.toastTimer);
+  state.toastTimer = setTimeout(() => { ui.toast.hidden = true; }, 2800);
+}
+
+function savePrefs() {
+  try {
+    localStorage.setItem("nagham-prefs", JSON.stringify({
+      style: state.style, ratio: state.ratio, length: state.length, quality: state.quality,
+      lyricStyle: state.lyricStyle, font: ui.fontIn.value, accent: ui.accentIn.value,
+      intensity: ui.intensity.value, lyricSize: ui.lyricSize.value,
+      spectrum: ui.chkSpectrum.checked, letter: ui.chkLetter.checked,
+      progress: ui.chkProgress.checked, intro: ui.chkIntro.checked, end: ui.chkEnd.checked,
+    }));
+    toast("اتحفظت إعداداتك على الجهاز");
+  } catch { toast("مقدرناش نحفظ الإعدادات"); }
+}
+
+function loadPrefs() {
+  try {
+    const p = JSON.parse(localStorage.getItem("nagham-prefs") || "null");
+    if (!p) return;
+    if (p.style) state.style = p.style;
+    if (p.ratio) state.ratio = p.ratio;
+    if (p.length != null) state.length = p.length;
+    if (p.quality) state.quality = p.quality;
+    if (p.lyricStyle) state.lyricStyle = p.lyricStyle;
+    if (p.font) ui.fontIn.value = p.font;
+    if (p.accent) ui.accentIn.value = p.accent;
+    if (p.intensity) { ui.intensity.value = p.intensity; ui.intVal.textContent = `${p.intensity}%`; }
+    if (p.lyricSize) { ui.lyricSize.value = p.lyricSize; ui.lySizeVal.textContent = `${p.lyricSize}%`; }
+    if (typeof p.spectrum === "boolean") ui.chkSpectrum.checked = p.spectrum;
+    if (typeof p.letter === "boolean") ui.chkLetter.checked = p.letter;
+    if (typeof p.progress === "boolean") ui.chkProgress.checked = p.progress;
+    if (typeof p.intro === "boolean") ui.chkIntro.checked = p.intro;
+    if (typeof p.end === "boolean") ui.chkEnd.checked = p.end;
+    document.querySelectorAll("#ratios button").forEach((b) => b.classList.toggle("on", b.dataset.ratio === state.ratio));
+    document.querySelectorAll("#lengths button").forEach((b) => {
+      const v = b.dataset.len === "full" ? "full" : Number(b.dataset.len);
+      b.classList.toggle("on", String(v) === String(state.length));
+    });
+    document.querySelectorAll("#quals button").forEach((b) => b.classList.toggle("on", b.dataset.q === state.quality));
+    document.querySelectorAll("#lyricStyles button").forEach((b) => b.classList.toggle("on", b.dataset.ls === state.lyricStyle));
+  } catch { /* ignore */ }
+}
+
+function paintWave() {
+  const c = ui.wave;
+  if (!c) return;
+  const ctx = c.getContext("2d");
+  const w = c.width = c.clientWidth || 300;
+  const h = c.height = 36;
+  ctx.clearRect(0, 0, w, h);
+  const peaks = audio.peaks?.length ? audio.peaks : Array.from({ length: 80 }, () => 0.15);
+  const n = peaks.length;
+  const mid = h / 2;
+  const dur = ui.audio.duration || 1;
+  const t = ui.audio.currentTime || 0;
+  for (let i = 0; i < n; i++) {
+    const x = (i / n) * w;
+    const amp = Math.max(2, peaks[i] * h * 2.2);
+    ctx.fillStyle = i / n <= t / dur ? "#e0b35a" : "rgba(246,239,226,0.22)";
+    ctx.fillRect(x, mid - amp / 2, Math.max(1, w / n - 0.6), amp);
+  }
+}
+
+function paintLyricList() {
+  if (!ui.lyricList) return;
+  ui.lyricList.innerHTML = "";
+  state.timedLyrics.forEach((line) => {
+    const li = document.createElement("li");
+    li.textContent = `${fmt(line.start)}  ${line.text}`;
+    li.addEventListener("click", () => {
+      if (ui.audio.duration) ui.audio.currentTime = line.start;
+    });
+    ui.lyricList.appendChild(li);
+  });
+}
+
+function updateLyricChrome(t) {
+  const hit = state.timedLyrics.find((l) => t >= l.start && t < l.end);
+  if (ui.nowLyric) {
+    ui.nowLyric.textContent = hit?.text || (state.timedLyrics.length ? "…" : "الكلمات هتظهر هنا وقت التشغيل");
+  }
+  if (ui.lyricList) {
+    [...ui.lyricList.children].forEach((li, i) => {
+      const line = state.timedLyrics[i];
+      li.classList.toggle("on", !!(line && t >= line.start && t < line.end));
+    });
+  }
+}
+
 function paintStyles() {
   ui.styles.innerHTML = "";
   for (const s of STYLES) {
