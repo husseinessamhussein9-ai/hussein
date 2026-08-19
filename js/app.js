@@ -1,6 +1,7 @@
 import { AudioEngine } from "./audio.js";
 import { VisualEngine, STYLES } from "./visuals.js";
 import { recordVideo } from "./export.js";
+import { saveBlob } from "./webm.js";
 import { timeLyrics, fetchLyrics } from "./lyrics.js";
 import { transcribeSong } from "./ai.js";
 
@@ -14,10 +15,10 @@ const ui = {
   timeLabel: $("timeLabel"), seek: $("seek"),
   titleIn: $("titleIn"), artistIn: $("artistIn"),
   styles: $("styles"), ratios: $("ratios"), lengths: $("lengths"),
-  exportBtn: $("exportBtn"), exportLabel: $("exportLabel"), exportHint: $("exportHint"),
+  exportBtn: $("exportBtn"), exportBtn2: $("exportBtn2"), exportLabel: $("exportLabel"), exportHint: $("exportHint"),
   exportBar: $("exportBar"), exportFill: $("exportFill"), exportProg: $("exportProg"),
   fileName: $("fileName"), againBtn: $("againBtn"), backBtn: $("backBtn"),
-  outVid: $("outVid"), dlLink: $("dlLink"),
+  outVid: $("outVid"), dlLink: $("dlLink"), dlBtn: $("dlBtn"), openBtn: $("openBtn"), fileMeta: $("fileMeta"),
   statDur: $("statDur"), statBpm: $("statBpm"), statMood: $("statMood"), statEnergy: $("statEnergy"),
   ambient: $("ambient"), lyricsIn: $("lyricsIn"), lyricStatus: $("lyricStatus"),
   aiBtn: $("aiBtn"), fetchBtn: $("fetchBtn"), applyLyrics: $("applyLyrics"),
@@ -37,6 +38,8 @@ const state = {
   lyricStyle: "karaoke",
   objectUrl: "",
   lastBlobUrl: "",
+  lastBlob: null,
+  lastName: "nagham.webm",
   exporting: false,
   raf: 0,
   timedLyrics: [],
@@ -69,9 +72,15 @@ function paintStyles() {
   }
 }
 
-function applyLook() {
+function applyLook(resize = false) {
   const resolved = state.style === "auto" ? (audio.mood || "cinematic") : state.style;
-  visual.setSize(state.ratio, state.exporting ? state.quality : "720");
+  if (resize) {
+    visual.setSize(state.ratio, state.exporting ? state.quality : "720");
+    if (ui.view.width !== visual.w || ui.view.height !== visual.h) {
+      ui.view.width = visual.w;
+      ui.view.height = visual.h;
+    }
+  }
   visual.setMeta({
     title: ui.titleIn.value.trim(),
     artist: ui.artistIn.value.trim(),
@@ -88,8 +97,11 @@ function applyLook() {
     intensity: Number(ui.intensity.value) / 100,
     accent: ui.accentIn.value,
   });
-  ui.view.width = visual.w;
-  ui.view.height = visual.h;
+}
+
+function fileNameFor(ext) {
+  const raw = (ui.titleIn.value.trim() || "nagham").replace(/[<>:"/\\|?*]+/g, "").slice(0, 50);
+  return `${raw || "nagham"}.${ext}`;
 }
 
 function clipSeconds() {
@@ -105,7 +117,7 @@ function bindSeg(root, attr, key, extra) {
     root.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b === btn));
     const val = btn.dataset[attr];
     state[key] = extra ? extra(val) : val;
-    applyLook();
+    applyLook(key === "ratio" || key === "quality");
   });
 }
 
@@ -118,7 +130,9 @@ function loop() {
   state.raf = requestAnimationFrame(loop);
   const data = audio.sample();
   visual.draw(data, performance.now() / 1000);
-  ui.view.getContext("2d").drawImage(visual.canvas, 0, 0, ui.view.width, ui.view.height);
+  if (ui.view.width && ui.view.height) {
+    ui.view.getContext("2d").drawImage(visual.canvas, 0, 0, ui.view.width, ui.view.height);
+  }
   if (!state.exporting) {
     ui.timeLabel.textContent = `${fmt(ui.audio.currentTime)} / ${fmt(ui.audio.duration)}`;
     if (ui.audio.duration) {
@@ -129,7 +143,8 @@ function loop() {
 
 function startLoop() {
   cancelAnimationFrame(state.raf);
-  applyLook();
+  visual.ensureMounted();
+  applyLook(true);
   loop();
 }
 
@@ -153,37 +168,46 @@ async function loadFile(file) {
   ui.done.hidden = true;
   ui.studio.hidden = false;
 
-  if (state.objectUrl) URL.revokeObjectURL(state.objectUrl);
-  state.objectUrl = URL.createObjectURL(file);
-  ui.audio.src = state.objectUrl;
-  ui.fileName.textContent = file.name;
-  const base = file.name.replace(/\.[^.]+$/, "");
-  if (!ui.titleIn.value) ui.titleIn.value = base;
-
-  await new Promise((res, rej) => {
-    ui.audio.onloadedmetadata = res;
-    ui.audio.onerror = () => rej(new Error("مش قادرين نقرأ الملف"));
-  });
-
-  await audio.setup();
-  await audio.resume();
-
   try {
-    ui.veilText.textContent = "الذكاء الاصطناعي بيسمع الإيقاع والكورس…";
-    await audio.analyzeBuffer(await file.arrayBuffer());
-  } catch {
-    audio.bpm = 110;
-    audio.mood = "cinematic";
-  }
+    if (state.objectUrl) URL.revokeObjectURL(state.objectUrl);
+    state.objectUrl = URL.createObjectURL(file);
+    ui.audio.src = state.objectUrl;
+    ui.fileName.textContent = file.name;
+    const base = file.name.replace(/\.[^.]+$/, "");
+    if (!ui.titleIn.value) ui.titleIn.value = base;
 
-  const sum = audio.summary();
-  ui.statDur.textContent = fmt(ui.audio.duration);
-  ui.statBpm.textContent = sum.bpm ? `${sum.bpm} BPM` : "—";
-  ui.statMood.textContent = sum.moodAr;
-  ui.statEnergy.textContent = sum.sections ? `${sum.sections} مشهد` : "—";
-  applyTiming();
-  ui.veil.hidden = true;
-  startLoop();
+    await new Promise((res, rej) => {
+      if (ui.audio.readyState >= 1) { res(); return; }
+      const ok = () => res();
+      const bad = () => rej(new Error("مش قادرين نقرأ الملف"));
+      ui.audio.addEventListener("loadedmetadata", ok, { once: true });
+      ui.audio.addEventListener("error", bad, { once: true });
+      setTimeout(res, 5000);
+    });
+
+    await audio.setup();
+    await audio.resume();
+
+    try {
+      ui.veilText.textContent = "الذكاء الاصطناعي بيسمع الإيقاع والكورس…";
+      await audio.analyzeBuffer(await file.arrayBuffer());
+    } catch {
+      audio.bpm = 110;
+      audio.mood = "cinematic";
+    }
+
+    const sum = audio.summary();
+    ui.statDur.textContent = fmt(ui.audio.duration);
+    ui.statBpm.textContent = sum.bpm ? `${sum.bpm} BPM` : "—";
+    ui.statMood.textContent = sum.moodAr;
+    ui.statEnergy.textContent = sum.sections ? `${sum.sections} مشهد` : "—";
+    applyTiming();
+    ui.veil.hidden = true;
+    startLoop();
+  } catch (err) {
+    ui.veilText.textContent = err.message || "حصل خطأ في قراءة الأغنية";
+    ui.veil.hidden = false;
+  }
 }
 
 function readImage(file) {
@@ -196,15 +220,36 @@ function readImage(file) {
   });
 }
 
+function presentResult(blob, ext) {
+  if (state.lastBlobUrl) URL.revokeObjectURL(state.lastBlobUrl);
+  state.lastBlob = blob;
+  state.lastName = fileNameFor(ext);
+  state.lastBlobUrl = URL.createObjectURL(blob);
+  ui.outVid.src = state.lastBlobUrl;
+  if (ui.dlLink) {
+    ui.dlLink.href = state.lastBlobUrl;
+    ui.dlLink.download = state.lastName;
+  }
+  if (ui.openBtn) ui.openBtn.href = state.lastBlobUrl;
+  if (ui.fileMeta) {
+    const mb = (blob.size / (1024 * 1024)).toFixed(1);
+    ui.fileMeta.textContent = `${state.lastName} · ${mb} MB · ${ext.toUpperCase()}`;
+  }
+  ui.studio.hidden = true;
+  ui.done.hidden = false;
+  try { saveBlob(blob, state.lastName); } catch { /* preview iframe may block auto-download */ }
+}
+
 async function exportClip() {
   if (state.exporting || !ui.audio.src) return;
   state.exporting = true;
   ui.exportBtn.disabled = true;
+  if (ui.exportBtn2) ui.exportBtn2.disabled = true;
   ui.exportLabel.textContent = "بنصوّر الفيديو…";
-  ui.exportHint.textContent = "سيّب التبويب مفتوح لحد ما يخلّص";
+  ui.exportHint.textContent = "سيّب التبويب ظاهر. متصغّرش الصفحة.";
   ui.exportBar.hidden = false;
   ui.playBtn.disabled = true;
-  applyLook();
+  applyLook(true);
   const seconds = clipSeconds();
   try {
     const { blob, ext } = await recordVideo({
@@ -214,24 +259,18 @@ async function exportClip() {
         ui.exportProg.textContent = `${Math.round(p * 100)}%`;
       },
     });
-    if (state.lastBlobUrl) URL.revokeObjectURL(state.lastBlobUrl);
-    state.lastBlobUrl = URL.createObjectURL(blob);
-    const name = (ui.titleIn.value.trim() || "nagham").replace(/[^\w\u0600-\u06FF-]+/g, "_");
-    ui.outVid.src = state.lastBlobUrl;
-    ui.dlLink.href = state.lastBlobUrl;
-    ui.dlLink.download = `${name}.${ext}`;
-    ui.studio.hidden = true;
-    ui.done.hidden = false;
+    presentResult(blob, ext);
   } catch (err) {
     ui.exportHint.textContent = err.message || "حصل خطأ. جرّب كروم أو إيدج.";
   } finally {
     state.exporting = false;
     ui.exportBtn.disabled = false;
+    if (ui.exportBtn2) ui.exportBtn2.disabled = false;
     ui.exportLabel.textContent = "نزّل الفيديو";
     ui.exportHint.textContent = "من غير علامة مائية · الصوت جوّه الفيديو";
     ui.playBtn.disabled = false;
     setPlaying(false);
-    applyLook();
+    applyLook(true);
   }
 }
 
@@ -390,10 +429,25 @@ function bind() {
     ui.audio.currentTime = (Number(ui.seek.value) / 1000) * ui.audio.duration;
   });
   ui.exportBtn.addEventListener("click", exportClip);
+  ui.exportBtn2?.addEventListener("click", exportClip);
   ui.againBtn.addEventListener("click", reset);
   ui.backBtn.addEventListener("click", () => {
     ui.done.hidden = true;
     ui.studio.hidden = false;
+  });
+  ui.dlBtn?.addEventListener("click", () => {
+    if (!state.lastBlob) return;
+    try { saveBlob(state.lastBlob, state.lastName); }
+    catch { window.open(state.lastBlobUrl, "_blank"); }
+  });
+  ui.openBtn?.addEventListener("click", () => {
+    if (state.lastBlobUrl) window.open(state.lastBlobUrl, "_blank", "noopener");
+  });
+  ui.dlLink?.addEventListener("click", (e) => {
+    if (!state.lastBlob) return;
+    e.preventDefault();
+    try { saveBlob(state.lastName ? state.lastBlob : state.lastBlob, state.lastName); }
+    catch { window.open(state.lastBlobUrl, "_blank"); }
   });
 }
 

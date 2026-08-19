@@ -46,7 +46,7 @@ export class AudioEngine {
     this.source.connect(this.analyser);
     this.analyser.connect(this.gain);
     this.gain.connect(this.ctx.destination);
-    this.analyser.connect(this.recordDest);
+    this.source.connect(this.recordDest);
     this.freq = new Uint8Array(this.analyser.frequencyBinCount);
     this.time = new Uint8Array(this.analyser.fftSize);
     this.ready = true;

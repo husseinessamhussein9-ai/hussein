@@ -213,16 +213,28 @@
           <p class="fine" id="fileName"></p>
           <button type="button" class="ghost" id="againBtn">أغنية تانية</button>
         </div>
+
+        <button type="button" class="cta sticky-export" id="exportBtn2">
+          <span>نزّل الفيديو</span>
+          <small>من أي تبويب</small>
+        </button>
       </aside>
     </section>
 
     <section id="done" class="done" hidden>
       <h2>الفيديو جاهز</h2>
+      <p class="hint" id="fileMeta"></p>
       <video id="outVid" controls playsinline></video>
       <div class="done-actions">
-        <a class="cta" id="dlLink" download="nagham.webm">تحميل الفيديو</a>
+        <button type="button" class="cta" id="dlBtn">
+          <span>تحميل الفيديو</span>
+          <small>لو الزر اتقفل، افتحه في تاب جديدة</small>
+        </button>
+        <a class="ghost-btn" id="openBtn" target="_blank" rel="noopener">افتح في تاب جديدة</a>
+        <a class="ghost" id="dlLink" download="nagham.webm">رابط مباشر</a>
         <button type="button" class="ghost" id="backBtn">عدّل تاني</button>
       </div>
+      <p class="hint">الملف WebM بيفتح على كروم وإيدج. لو أنت على آيفون افتحه في تاب جديدة واحفظه من هناك.</p>
     </section>
   </main>
 

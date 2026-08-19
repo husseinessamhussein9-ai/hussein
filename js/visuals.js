@@ -35,7 +35,10 @@ const GLOW = {
 export class VisualEngine {
   constructor() {
     this.canvas = document.createElement("canvas");
-    this.ctx = this.canvas.getContext("2d", { alpha: false });
+    this.canvas.className = "record-canvas";
+    this.canvas.setAttribute("aria-hidden", "true");
+    this.ctx = this.canvas.getContext("2d", { alpha: false, desynchronized: true });
+    this._pattern = null;
     this.images = {};
     this.cover = null;
     this.customBg = null;
@@ -47,6 +50,8 @@ export class VisualEngine {
     this.ratio = "16:9";
     this.w = 1280;
     this.h = 720;
+    this.canvas.width = 1280;
+    this.canvas.height = 720;
     this.grain = this._makeGrain();
     this.lyrics = [];
     this.lyricStyle = "karaoke";
@@ -95,9 +100,11 @@ export class VisualEngine {
       this.w = long;
       this.h = Math.round(long * 9 / 16);
     }
+    if (this.canvas.width === this.w && this.canvas.height === this.h) return;
     this.canvas.width = this.w;
     this.canvas.height = this.h;
     this._wrapCache.clear();
+    this._pattern = null;
   }
 
   setMeta(m = {}) {
@@ -136,6 +143,13 @@ export class VisualEngine {
     }
     g.putImageData(img, 0, 0);
     return c;
+  }
+
+  ensureMounted() {
+    if (!this.canvas.isConnected) document.body.appendChild(this.canvas);
+    if (!this._pattern) {
+      try { this._pattern = this.ctx.createPattern(this.grain, "repeat"); } catch { this._pattern = null; }
+    }
   }
 
   _pickScene(a) {
@@ -470,8 +484,12 @@ export class VisualEngine {
 
   _grainOverlay() {
     const { ctx, w, h } = this;
+    if (!this._pattern) {
+      try { this._pattern = ctx.createPattern(this.grain, "repeat"); } catch { return; }
+    }
+    if (!this._pattern) return;
     ctx.globalAlpha = 0.11;
-    ctx.fillStyle = ctx.createPattern(this.grain, "repeat");
+    ctx.fillStyle = this._pattern;
     ctx.fillRect(0, 0, w, h);
     ctx.globalAlpha = 1;
   }
