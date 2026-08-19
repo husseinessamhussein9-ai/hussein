@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>نَغَم — ارفع الأغنية، وخد الفيديو</title>
+  <meta name="description" content="موقع مجاني تمامًا: ارفع أغنيتك وهيتعمل فيديو يليق بيها حسب الإيقاع والمزاج. من غير تسجيل ومن غير علامة مائية." />
+  <meta name="theme-color" content="#07060a" />
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="assets/og-cover.jpg" />
+  <meta property="og:title" content="نَغَم — فيديو من أغنيتك" />
+  <meta property="og:description" content="ارفع الأغنية. هنعمل فيديو يليق بيها. مجانًا تمامًا." />
+  <meta property="og:image" content="assets/og-cover.jpg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div class="noise" aria-hidden="true"></div>
+  <canvas id="ambient" class="ambient" aria-hidden="true"></canvas>
+
+  <header class="top">
+    <a class="brand" href="./" aria-label="نغم">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span class="brand-name">نَغَم</span>
+    </a>
+    <p class="top-note">مجاني · الأغنية متتفضلش على سيرفر · من غير علامة مائية</p>
+  </header>
+
+  <main>
+    <section id="gate" class="gate">
+      <p class="eyebrow">مولّد فيديو الأغاني</p>
+      <h1>ارفع الأغنية.<br /><em>هنعمل فيديو يليق بيها.</em></h1>
+      <p class="lede">
+        الموقع بيسمع الإيقاع والطاقة والمزاج، ويولّد كليب سينمائي متزامن مع الأغنية.
+        كل حاجة بتتعمل على جهازك. مجانًا تمامًا.
+      </p>
+
+      <label class="drop" id="drop">
+        <input id="file" type="file" accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac,.opus" hidden />
+        <span class="drop-ring" aria-hidden="true"></span>
+        <span class="drop-icon" aria-hidden="true">
+          <svg viewBox="0 0 48 48" fill="none">
+            <circle cx="24" cy="24" r="18" stroke="currentColor" stroke-width="1.6"/>
+            <circle cx="24" cy="24" r="5" stroke="currentColor" stroke-width="1.6"/>
+            <circle cx="24" cy="24" r="1.6" fill="currentColor"/>
+          </svg>
+        </span>
+        <strong>اضغط أو اسحب الأغنية هنا</strong>
+        <small>MP3 · WAV · M4A · OGG · FLAC</small>
+      </label>
+
+      <ul class="pills">
+        <li>تحليل إيقاع تلقائي</li>
+        <li>7 ستايلات سينمائية</li>
+        <li>يوتيوب وتيك توك وريلز</li>
+        <li>تحميل مباشر</li>
+      </ul>
+    </section>
+
+    <section id="studio" class="studio" hidden>
+      <div class="stage-wrap">
+        <div class="stage" id="stage">
+          <canvas id="view"></canvas>
+          <div class="stage-veil" id="veil">
+            <div class="spinner" aria-hidden="true"></div>
+            <p id="veilText">بنجهّز الأغنية…</p>
+          </div>
+        </div>
+
+        <div class="transport">
+          <button type="button" class="icon-btn" id="playBtn" aria-label="تشغيل">
+            <svg id="iconPlay" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5-11-6.5z"/></svg>
+            <svg id="iconPause" viewBox="0 0 24 24" fill="currentColor" hidden><path d="M7 5h3.5v14H7V5zm6.5 0H17v14h-3.5V5z"/></svg>
+          </button>
+          <div class="time" id="timeLabel">0:00 / 0:00</div>
+          <input id="seek" class="seek" type="range" min="0" max="1000" value="0" />
+        </div>
+      </div>
+
+      <aside class="panel">
+        <div class="stats" id="stats">
+          <div><span>المدة</span><b id="statDur">—</b></div>
+          <div><span>الإيقاع</span><b id="statBpm">—</b></div>
+          <div><span>المزاج</span><b id="statMood">—</b></div>
+          <div><span>الطاقة</span><b id="statEnergy">—</b></div>
+        </div>
+
+        <label class="field">
+          <span>اسم الأغنية</span>
+          <input id="titleIn" type="text" maxlength="80" placeholder="اسم الأغنية" />
+        </label>
+        <label class="field">
+          <span>الفنان</span>
+          <input id="artistIn" type="text" maxlength="60" placeholder="اختياري" />
+        </label>
+
+        <fieldset class="field">
+          <legend>الستايل</legend>
+          <div class="styles" id="styles"></div>
+        </fieldset>
+
+        <fieldset class="field">
+          <legend>المقاس</legend>
+          <div class="seg" id="ratios">
+            <button type="button" data-ratio="16:9" class="on">يوتيوب 16:9</button>
+            <button type="button" data-ratio="9:16">تيك توك 9:16</button>
+            <button type="button" data-ratio="1:1">مربع 1:1</button>
+          </div>
+        </fieldset>
+
+        <fieldset class="field">
+          <legend>مدة الفيديو</legend>
+          <div class="seg" id="lengths">
+            <button type="button" data-len="15">15 ث</button>
+            <button type="button" data-len="30" class="on">30 ث</button>
+            <button type="button" data-len="60">60 ث</button>
+            <button type="button" data-len="full">الأغنية كلها</button>
+          </div>
+        </fieldset>
+
+        <button type="button" class="cta" id="exportBtn">
+          <span id="exportLabel">نزّل الفيديو</span>
+          <small id="exportHint">WebM بجودة عالية · من غير علامة مائية</small>
+        </button>
+
+        <div class="export-bar" id="exportBar" hidden>
+          <div class="export-fill" id="exportFill"></div>
+          <span id="exportProg">0%</span>
+        </div>
+
+        <p class="fine" id="fileName"></p>
+        <button type="button" class="ghost" id="againBtn">أغنية تانية</button>
+      </aside>
+    </section>
+
+    <section id="done" class="done" hidden>
+      <h2>الفيديو جاهز</h2>
+      <video id="outVid" controls playsinline></video>
+      <div class="done-actions">
+        <a class="cta" id="dlLink" download="nagham.webm">تحميل الفيديو</a>
+        <button type="button" class="ghost" id="backBtn">عدّل تاني</button>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <p>نَغَم بيشتغل كله جوّه المتصفح. الأغنية مش بتتبعت لأي سيرفر.</p>
+  </footer>
+
+  <audio id="audio" preload="auto" crossorigin="anonymous"></audio>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
