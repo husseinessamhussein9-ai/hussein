@@ -106,6 +106,7 @@ export class AudioEngine {
       time: new Uint8Array(2048),
       bass: 0, mid: 0, treble: 0, energy: 0,
       beat: false, beatFlash: 0, bpm: 0, t: 0, dur: 0,
+      section: { start: 0, end: 1, type: "verse", style: "cinematic", energy: 0 },
     };
   }
 
