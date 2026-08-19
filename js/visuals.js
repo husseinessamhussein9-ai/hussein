@@ -33,11 +33,10 @@ const GLOW = {
 };
 
 export class VisualEngine {
-  constructor() {
-    this.canvas = document.createElement("canvas");
-    this.canvas.className = "record-canvas";
+  constructor(canvas) {
+    this.canvas = canvas || document.createElement("canvas");
     this.canvas.setAttribute("aria-hidden", "true");
-    this.ctx = this.canvas.getContext("2d", { alpha: false, desynchronized: true });
+    this.ctx = this.canvas.getContext("2d", { alpha: false });
     this._pattern = null;
     this.images = {};
     this.cover = null;
@@ -146,7 +145,6 @@ export class VisualEngine {
   }
 
   ensureMounted() {
-    if (!this.canvas.isConnected) document.body.appendChild(this.canvas);
     if (!this._pattern) {
       try { this._pattern = this.ctx.createPattern(this.grain, "repeat"); } catch { this._pattern = null; }
     }

@@ -239,16 +239,21 @@ h1 em {
 }
 .stage-veil, .export-overlay {
   position: absolute;
-  inset: 0;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  top: auto;
   display: grid;
   place-items: center;
   align-content: center;
-  gap: 14px;
-  background: rgba(0,0,0,0.58);
-  backdrop-filter: blur(6px);
+  gap: 10px;
+  background: rgba(7, 6, 10, 0.82);
+  backdrop-filter: blur(8px);
   font-weight: 700;
-  padding: 24px;
+  padding: 14px 16px;
   text-align: center;
+  border-radius: 16px;
+  border: 1px solid rgba(224, 179, 90, 0.25);
 }
 .stage-veil[hidden], .export-overlay[hidden] { display: none; }
 .export-overlay .export-bar { width: min(320px, 80%); }

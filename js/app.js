@@ -49,10 +49,11 @@ const state = {
   timedLyrics: [],
   cancel: false,
   toastTimer: 0,
+  videoTrack: null,
 };
 
 const audio = new AudioEngine(ui.audio);
-const visual = new VisualEngine();
+const visual = new VisualEngine(ui.view);
 
 function fmt(t) {
   if (!Number.isFinite(t)) return "0:00";
@@ -137,8 +138,8 @@ function loop() {
   state.raf = requestAnimationFrame(loop);
   const data = audio.sample();
   visual.draw(data, performance.now() / 1000);
-  if (ui.view.width && ui.view.height) {
-    ui.view.getContext("2d").drawImage(visual.canvas, 0, 0, ui.view.width, ui.view.height);
+  if (state.videoTrack) {
+    try { state.videoTrack.requestFrame?.(); } catch { /* optional */ }
   }
   if (!state.exporting) {
     ui.timeLabel.textContent = `${fmt(ui.audio.currentTime)} / ${fmt(ui.audio.duration)}`;
@@ -287,17 +288,23 @@ async function exportClip() {
       visual, audio, audioEl: ui.audio, seconds, quality: state.quality,
       onProgress: setProg,
       shouldCancel: () => state.cancel,
+      onTrack: (t) => { state.videoTrack = t; },
     });
     presentResult(blob, ext);
+    toast("الفيديو جاهز");
   } catch (err) {
     ui.exportHint.textContent = err.message || "حصل خطأ. جرّب كروم أو إيدج.";
+    toast(err.message || "التصدير فشل");
   } finally {
     state.exporting = false;
+    state.cancel = false;
+    state.videoTrack = null;
     ui.exportBtn.disabled = false;
     if (ui.exportBtn2) ui.exportBtn2.disabled = false;
     ui.exportLabel.textContent = "نزّل الفيديو";
     ui.exportHint.textContent = "من غير علامة مائية · الصوت جوّه الفيديو";
     ui.playBtn.disabled = false;
+    if (ui.exportOverlay) ui.exportOverlay.hidden = true;
     setPlaying(false);
     applyLook(true);
   }

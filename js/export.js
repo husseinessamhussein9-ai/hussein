@@ -79,6 +79,7 @@ export async function recordVideo({
   quality = "720",
   onProgress,
   shouldCancel,
+  onTrack,
 }) {
   if (!window.MediaRecorder) throw new Error("المتصفح مش بيدعم تسجيل فيديو. افتح كروم أو إيدج.");
   await audio.resume();
@@ -89,13 +90,22 @@ export async function recordVideo({
   await waitSeeked(audioEl);
 
   visual.ensureMounted();
-  visual.draw(audio.sample(), 0);
+  const frame = () => visual.draw(audio.sample(), audioEl.currentTime || 0);
+  frame();
+  await new Promise((r) => requestAnimationFrame(() => { frame(); r(); }));
+  await new Promise((r) => requestAnimationFrame(() => { frame(); r(); }));
 
+  const recCanvas = visual.canvas;
+  if (!recCanvas.width || !recCanvas.height) {
+    throw new Error("مقاس الفيديو مش جاهز. غيّر المقاس وجرّب تاني.");
+  }
   const fps = 30;
-  const canvasStream = visual.canvas.captureStream(fps);
+  const canvasStream = recCanvas.captureStream(fps);
   const vTrack = canvasStream.getVideoTracks()[0];
   if (!vTrack) throw new Error("مقدرناش نمسك صورة الفيديو");
+  try { vTrack.contentHint = "motion"; } catch { /* optional */ }
   try { vTrack.requestFrame?.(); } catch { /* optional */ }
+  onTrack?.(vTrack);
 
   const tracks = [vTrack, ...audioTracks(audio, audioEl)];
   const mixed = new MediaStream(tracks);
@@ -130,7 +140,7 @@ export async function recordVideo({
       const played = Math.max(0, (audioEl.currentTime - startAudio) * 1000);
       const elapsed = Math.max(wall, played);
       onProgress?.(Math.min(0.99, elapsed / totalMs));
-      if (elapsed >= totalMs || audioEl.ended || rec.state !== "recording") {
+      if (shouldCancel?.() || elapsed >= totalMs || audioEl.ended || rec.state !== "recording") {
         resolve();
         return;
       }
