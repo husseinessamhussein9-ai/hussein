@@ -31,6 +31,7 @@ export class AudioEngine {
     this._lastBeat = 0;
     this.sections = [];
     this.envelope = [];
+    this.peaks = [];
   }
 
   async setup() {
@@ -47,6 +48,7 @@ export class AudioEngine {
     this.analyser.connect(this.gain);
     this.gain.connect(this.ctx.destination);
     this.source.connect(this.recordDest);
+    this.gain.gain.value = 0.9;
     this.freq = new Uint8Array(this.analyser.frequencyBinCount);
     this.time = new Uint8Array(this.analyser.fftSize);
     this.ready = true;
@@ -54,6 +56,12 @@ export class AudioEngine {
 
   async resume() {
     if (this.ctx && this.ctx.state === "suspended") await this.ctx.resume();
+  }
+
+  setVolume(v) {
+    const x = Math.max(0, Math.min(1, Number(v)));
+    if (this.gain) this.gain.gain.value = x;
+    this.el.volume = x;
   }
 
   sample() {

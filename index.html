@@ -47,6 +47,13 @@
         <strong>اضغط أو اسحب الأغنية هنا</strong>
         <small>MP3 · WAV · M4A · OGG · FLAC</small>
       </label>
+
+      <ol class="steps">
+        <li><b>١</b><span>ارفع الأغنية</span></li>
+        <li><b>٢</b><span>حط الكلمات أو استخرجها</span></li>
+        <li><b>٣</b><span>نزّل الفيديو</span></li>
+      </ol>
+
       <ul class="pills">
         <li>مخرج AI للمشاهد</li>
         <li>استخراج الكلمات</li>
@@ -60,19 +67,41 @@
       <div class="stage-wrap">
         <div class="stage" id="stage">
           <canvas id="view"></canvas>
+          <div class="badge" id="secBadge">—</div>
           <div class="stage-veil" id="veil">
             <div class="spinner" aria-hidden="true"></div>
             <p id="veilText">بنجهّز الأغنية…</p>
           </div>
+          <div class="export-overlay" id="exportOverlay" hidden>
+            <div class="spinner" aria-hidden="true"></div>
+            <p>بنصوّر الفيديو… سيّب الصفحة ظاهرة</p>
+            <div class="export-bar">
+              <div class="export-fill" id="exportFill2"></div>
+              <span id="exportProg2">0%</span>
+            </div>
+            <button type="button" class="ghost-btn" id="cancelBtn">إلغاء</button>
+          </div>
         </div>
+
+        <p class="now-lyric" id="nowLyric">الكلمات هتظهر هنا وقت التشغيل</p>
+
         <div class="transport">
           <button type="button" class="icon-btn" id="playBtn" aria-label="تشغيل">
             <svg id="iconPlay" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5-11-6.5z"/></svg>
             <svg id="iconPause" viewBox="0 0 24 24" fill="currentColor" hidden><path d="M7 5h3.5v14H7V5zm6.5 0H17v14h-3.5V5z"/></svg>
           </button>
+          <button type="button" class="mini" id="restartBtn" title="من الأول">↺</button>
           <div class="time" id="timeLabel">0:00 / 0:00</div>
-          <input id="seek" class="seek" type="range" min="0" max="1000" value="0" />
+          <div class="seek-box">
+            <canvas id="wave" class="wave" height="36"></canvas>
+            <input id="seek" class="seek" type="range" min="0" max="1000" value="0" />
+          </div>
+          <label class="vol">
+            <span>صوت</span>
+            <input id="vol" class="seek" type="range" min="0" max="100" value="90" />
+          </label>
         </div>
+        <p class="keys">مسافة = تشغيل · ← → = تقديم · S = حفظ الإعدادات</p>
       </div>
 
       <aside class="panel">
@@ -151,11 +180,12 @@
               <input id="bgIn" type="file" accept="image/*" />
             </label>
           </div>
+          <button type="button" class="ghost" id="clearArt">امسح الغلاف والخلفية</button>
         </div>
 
         <div class="pane" data-pane="words" hidden>
-          <p class="hint">الصق الكلمات، أو استخرجها بالذكاء الاصطناعي من صوت الأغنية، أو هاتنها بالاسم.</p>
-          <textarea id="lyricsIn" rows="9" placeholder="سطر لكل جملة…&#10;الليل طويل وأنا سايبك&#10;والقلب لسه بيناديك"></textarea>
+          <p class="hint">سطر لكل جملة. تقدر تلصق، تستخرج بالذكاء الاصطناعي، أو تجيبها بالاسم.</p>
+          <textarea id="lyricsIn" rows="8" placeholder="سطر لكل جملة…&#10;الليل طويل وأنا سايبك&#10;والقلب لسه بيناديك"></textarea>
           <fieldset class="field">
             <legend>لغة الاستخراج</legend>
             <div class="seg" id="langs">
@@ -183,6 +213,7 @@
             <input id="lyricSize" class="seek" type="range" min="70" max="160" value="100" />
           </label>
           <button type="button" class="ghost-btn" id="applyLyrics">طبّق التوقيت على الإيقاع</button>
+          <ol class="lyric-list" id="lyricList"></ol>
         </div>
 
         <div class="pane" data-pane="out" hidden>
@@ -202,6 +233,7 @@
               <button type="button" data-q="1080">1080p فاخر</button>
             </div>
           </fieldset>
+          <p class="hint">التصدير بيصوّر الفيديو في الوقت الحقيقي. اختار 15 أو 30 ثانية للتجربة.</p>
           <button type="button" class="cta" id="exportBtn">
             <span id="exportLabel">نزّل الفيديو</span>
             <small id="exportHint">من غير علامة مائية · الصوت جوّه الفيديو</small>
@@ -237,6 +269,8 @@
       <p class="hint">الملف WebM بيفتح على كروم وإيدج. لو أنت على آيفون افتحه في تاب جديدة واحفظه من هناك.</p>
     </section>
   </main>
+
+  <div id="toast" class="toast" hidden></div>
 
   <footer class="foot">
     <p>نَغَم ستوديو · الذكاء الاصطناعي والكلمات بيشتغلوا على جهازك. الأغنية مش بتتبعت لسيرفرنا.</p>

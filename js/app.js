@@ -27,6 +27,10 @@ const ui = {
   coverIn: $("coverIn"), bgIn: $("bgIn"),
   chkSpectrum: $("chkSpectrum"), chkLetter: $("chkLetter"), chkProgress: $("chkProgress"),
   chkIntro: $("chkIntro"), chkEnd: $("chkEnd"),
+  wave: $("wave"), nowLyric: $("nowLyric"), secBadge: $("secBadge"),
+  exportOverlay: $("exportOverlay"), exportFill2: $("exportFill2"), exportProg2: $("exportProg2"),
+  cancelBtn: $("cancelBtn"), vol: $("vol"), restartBtn: $("restartBtn"),
+  toast: $("toast"), lyricList: $("lyricList"), clearArt: $("clearArt"),
 };
 
 const state = {
@@ -43,6 +47,8 @@ const state = {
   exporting: false,
   raf: 0,
   timedLyrics: [],
+  cancel: false,
+  toastTimer: 0,
 };
 
 const audio = new AudioEngine(ui.audio);
@@ -139,6 +145,9 @@ function loop() {
     if (ui.audio.duration) {
       ui.seek.value = String(Math.round((ui.audio.currentTime / ui.audio.duration) * 1000));
     }
+    if (ui.secBadge) ui.secBadge.textContent = SECTION_AR[data.section?.type] || "مقطع";
+    updateLyricChrome(ui.audio.currentTime || 0);
+    paintWave();
   }
 }
 
@@ -153,11 +162,13 @@ function applyTiming() {
   const raw = ui.lyricsIn.value.trim();
   if (!raw) {
     state.timedLyrics = [];
+    paintLyricList();
     applyLook();
     return;
   }
   state.timedLyrics = timeLyrics(raw, ui.audio.duration || 30, audio.bpm || 110);
   ui.lyricStatus.textContent = `${state.timedLyrics.length} سطر متزامن مع الإيقاع`;
+  paintLyricList();
   applyLook();
 }
 
@@ -205,6 +216,8 @@ async function loadFile(file) {
     applyTiming();
     ui.veil.hidden = true;
     startLoop();
+    paintWave();
+    toast("الأغنية جاهزة. اضغط تشغيل وتعالَ على الكلمات.");
   } catch (err) {
     ui.veilText.textContent = err.message || "حصل خطأ في قراءة الأغنية";
     ui.veil.hidden = false;
@@ -244,21 +257,36 @@ function presentResult(blob, ext) {
 async function exportClip() {
   if (state.exporting || !ui.audio.src) return;
   state.exporting = true;
+  state.cancel = false;
   ui.exportBtn.disabled = true;
   if (ui.exportBtn2) ui.exportBtn2.disabled = true;
   ui.exportLabel.textContent = "بنصوّر الفيديو…";
   ui.exportHint.textContent = "سيّب التبويب ظاهر. متصغّرش الصفحة.";
   ui.exportBar.hidden = false;
+  if (ui.exportOverlay) ui.exportOverlay.hidden = false;
   ui.playBtn.disabled = true;
   applyLook(true);
-  const seconds = clipSeconds();
+  let seconds = clipSeconds();
+  if (state.length === "full" && seconds > 180 && !confirm("الأغنية أطول من 3 دقايق. التصدير هيتم في الوقت الحقيقي. كمّل؟")) {
+    state.exporting = false;
+    ui.exportBtn.disabled = false;
+    if (ui.exportBtn2) ui.exportBtn2.disabled = false;
+    ui.playBtn.disabled = false;
+    if (ui.exportOverlay) ui.exportOverlay.hidden = true;
+    return;
+  }
+  const setProg = (p) => {
+    const pct = `${Math.round(p * 100)}%`;
+    ui.exportFill.style.width = pct;
+    ui.exportProg.textContent = pct;
+    if (ui.exportFill2) ui.exportFill2.style.width = pct;
+    if (ui.exportProg2) ui.exportProg2.textContent = pct;
+  };
   try {
     const { blob, ext } = await recordVideo({
       visual, audio, audioEl: ui.audio, seconds, quality: state.quality,
-      onProgress: (p) => {
-        ui.exportFill.style.width = `${Math.round(p * 100)}%`;
-        ui.exportProg.textContent = `${Math.round(p * 100)}%`;
-      },
+      onProgress: setProg,
+      shouldCancel: () => state.cancel,
     });
     presentResult(blob, ext);
   } catch (err) {
@@ -374,7 +402,9 @@ function bind() {
       ui.lyricsIn.value = raw;
       state.timedLyrics = lines;
       ui.lyricStatus.textContent = `اتاستخرجت ${lines.length} جملة بالذكاء الاصطناعي`;
+      paintLyricList();
       applyLook();
+      toast("اتاستخرجت الكلمات");
     } catch (err) {
       ui.lyricStatus.textContent = err.message || "الاستخراج فشل. الصق الكلمات بإيدك.";
     } finally {
@@ -391,6 +421,7 @@ function bind() {
       if (hit.lines) {
         state.timedLyrics = hit.lines;
         ui.lyricStatus.textContent = `اتجاب ${hit.lines.length} سطر متزامن`;
+        paintLyricList();
       } else {
         applyTiming();
       }
@@ -431,6 +462,36 @@ function bind() {
   });
   ui.exportBtn.addEventListener("click", exportClip);
   ui.exportBtn2?.addEventListener("click", exportClip);
+  ui.cancelBtn?.addEventListener("click", () => { state.cancel = true; toast("بنوقف التصوير…"); });
+  ui.restartBtn?.addEventListener("click", () => {
+    if (!ui.audio.duration) return;
+    ui.audio.currentTime = 0;
+  });
+  ui.vol?.addEventListener("input", () => audio.setVolume(Number(ui.vol.value) / 100));
+  ui.clearArt?.addEventListener("click", () => {
+    visual.setCover(null);
+    visual.setCustomBg(null);
+    ui.coverIn.value = "";
+    ui.bgIn.value = "";
+    toast("اتمسحت الصور");
+  });
+  addEventListener("keydown", async (e) => {
+    if (["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)) return;
+    if (e.code === "Space") {
+      e.preventDefault();
+      ui.playBtn.click();
+    } else if (e.code === "ArrowRight" && ui.audio.duration) {
+      ui.audio.currentTime = Math.min(ui.audio.duration, ui.audio.currentTime + 5);
+    } else if (e.code === "ArrowLeft" && ui.audio.duration) {
+      ui.audio.currentTime = Math.max(0, ui.audio.currentTime - 5);
+    } else if (e.key === "s" || e.key === "S" || e.key === "س") {
+      savePrefs();
+    }
+  });
+  addEventListener("resize", paintWave);
+  loadPrefs();
+  paintStyles();
+  applyLook(true);
   ui.againBtn.addEventListener("click", reset);
   ui.backBtn.addEventListener("click", () => {
     ui.done.hidden = true;

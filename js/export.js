@@ -78,11 +78,11 @@ export async function recordVideo({
   seconds,
   quality = "720",
   onProgress,
+  shouldCancel,
 }) {
   if (!window.MediaRecorder) throw new Error("المتصفح مش بيدعم تسجيل فيديو. افتح كروم أو إيدج.");
   await audio.resume();
   audioEl.muted = false;
-  audioEl.volume = 1;
 
   audioEl.pause();
   audioEl.currentTime = 0;
@@ -139,12 +139,14 @@ export async function recordVideo({
     tick();
   });
 
+  const cancelled = shouldCancel?.();
   if (rec.state === "recording") {
     try { rec.requestData(); } catch { /* ignore */ }
     rec.stop();
   }
   await stopped;
   audioEl.pause();
+  if (cancelled) throw new Error("تم إلغاء التصوير");
 
   if (!chunks.length) throw new Error("التسجيل طلع فاضي. جرّب كروم، وضغط تشغيل قبل التحميل.");
   let blob = new Blob(chunks, { type: usedMime.split(";")[0] || "video/webm" });

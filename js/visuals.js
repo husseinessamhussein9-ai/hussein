@@ -182,8 +182,10 @@ export class VisualEngine {
     }
     this._grade(this._scene, audio);
     this._particles(this._scene, audio);
+    this._rays(this._scene, audio);
     if (this.showSpectrum) this._spectrum(this._scene, audio);
     this._beatFlash(audio);
+    this._coverBadge(t, audio);
     this._vignette();
     if (this.showLetterbox) this._letterbox(this._scene);
     this._lyrics(t, audio);
@@ -198,6 +200,7 @@ export class VisualEngine {
     if (!img) return;
     const iw = img.naturalWidth || img.width;
     const ih = img.naturalHeight || img.height;
+    if (!iw || !ih) return;
     const scale = Math.max(w / iw, h / ih) * zoom;
     ctx.drawImage(img, (w - iw * scale) / 2 + ox, (h - ih * scale) / 2 + oy, iw * scale, ih * scale);
   }
@@ -317,6 +320,50 @@ export class VisualEngine {
     ctx.fillRect(0, h - bar, w, bar);
   }
 
+  _rays(style, a) {
+    if (a.energy < 0.38 && a.beatFlash < 0.2) return;
+    const { ctx, w, h } = this;
+    ctx.save();
+    ctx.translate(w / 2, h * 0.42);
+    ctx.globalCompositeOperation = "lighter";
+    const n = 7;
+    for (let i = 0; i < n; i++) {
+      const ang = (i / n) * Math.PI * 2 + (a.t || 0) * 0.12;
+      ctx.rotate(ang);
+      const g = ctx.createLinearGradient(0, 0, 0, h * 0.45);
+      g.addColorStop(0, `rgba(255,230,180,${0.035 + a.beatFlash * 0.08})`);
+      g.addColorStop(1, "rgba(255,230,180,0)");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(-18, h * 0.42);
+      ctx.lineTo(18, h * 0.42);
+      ctx.fill();
+      ctx.rotate(-ang);
+    }
+    ctx.restore();
+  }
+
+  _coverBadge(t, a) {
+    if (!this.cover || (this.introCard && t < 3.2)) return;
+    const { ctx, w, h } = this;
+    const s = Math.min(w, h) * 0.11;
+    const x = this.ratio === "9:16" ? w * 0.08 : w * 0.07;
+    const y = this.ratio === "9:16" ? h * 0.1 : h * 0.14;
+    ctx.save();
+    ctx.globalAlpha = 0.92;
+    ctx.beginPath();
+    ctx.arc(x + s / 2, y + s / 2, s / 2, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.drawImage(this.cover, x, y, s, s);
+    ctx.restore();
+    ctx.beginPath();
+    ctx.arc(x + s / 2, y + s / 2, s / 2, 0, Math.PI * 2);
+    ctx.strokeStyle = this.accent;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
   _wrap(text, maxW, font) {
     const key = font + "|" + maxW + "|" + text;
     if (this._wrapCache.has(key)) return this._wrapCache.get(key);
@@ -325,11 +372,24 @@ export class VisualEngine {
     const words = text.split(/\s+/);
     const lines = [];
     let cur = "";
+    const pushLong = (token) => {
+      let piece = "";
+      for (const ch of [...token]) {
+        const test = piece + ch;
+        if (ctx.measureText(test).width > maxW && piece) {
+          lines.push(piece);
+          piece = ch;
+        } else piece = test;
+      }
+      if (piece) cur = piece;
+    };
     for (const word of words) {
       const test = cur ? cur + " " + word : word;
       if (ctx.measureText(test).width > maxW && cur) {
         lines.push(cur);
-        cur = word;
+        cur = "";
+        if (ctx.measureText(word).width > maxW) pushLong(word);
+        else cur = word;
       } else cur = test;
     }
     if (cur) lines.push(cur);
@@ -345,7 +405,8 @@ export class VisualEngine {
     if (!hit.current) return;
     const { ctx, w, h } = this;
     const fade = Math.min(1, hit.p * 8) * Math.min(1, (1 - hit.p) * 10 + 0.55);
-    const size = Math.round(Math.min(w, h) * 0.042 * this.lyricScale);
+    const chorus = a.section?.type === "chorus" ? 1.12 : 1;
+    const size = Math.round(Math.min(w, h) * 0.042 * this.lyricScale * chorus);
     const font = `800 ${size}px ${this.fontFamily}, Cairo, sans-serif`;
     const maxW = w * 0.82;
     const rows = this._wrap(hit.current.text, maxW, font);
