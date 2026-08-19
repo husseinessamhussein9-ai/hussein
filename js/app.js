@@ -111,9 +111,10 @@ function clipSeconds() {
 }
 
 function bindSeg(root, attr, key, extra) {
+  if (!root) return;
   root.addEventListener("click", (e) => {
     const btn = e.target.closest("button");
-    if (!btn) return;
+    if (!btn || state.exporting) return;
     root.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b === btn));
     const val = btn.dataset[attr];
     state[key] = extra ? extra(val) : val;
